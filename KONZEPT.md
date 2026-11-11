@@ -4,13 +4,36 @@ Ziel: Vorlesungs- und Übungsinhalte Woche für Woche einpflegen und mit
 regelmäßigen Abfragen (Spaced Repetition) so wiederholen, dass zur Klausur
 alles sicher sitzt.
 
+**Fach:** Ingenieurmathematik. Die Klausur besteht hauptsächlich aus
+Rechenaufgaben, deshalb liegt der Schwerpunkt auf Aufgaben mit geführten
+Lösungswegen und nicht auf reinem Karteikarten-Lernen.
+
 ## 1. Grundprinzip: Inhalte in Git, Lernfortschritt in Supabase
 
 | Was | Wo | Warum |
 |---|---|---|
-| Lerninhalte (Definitionen, Sätze, Aufgaben, Lösungen) | Dateien im Repo (`content/`) | versioniert, leicht korrigierbar, Claude kann neue Wochen per Commit ergänzen |
-| Original-Material (PDFs, Fotos) | `material/` im Repo (Repo **privat** halten) | Quelle, auf die jede Karte zurückverweist |
-| Lernfortschritt (wann wiederholt, wie gut gewusst, nächste Fälligkeit) | Supabase | geräteübergreifend (Handy + Laptop), bleibt bei Content-Updates erhalten |
+| App-Code + Lerninhalte (`content/`) | Repo `mathe-tool` (öffentlich) | wird über GitHub Pages ausgeliefert, wie beim Wochenendplaner |
+| Original-Material (Folien-PDFs, Aufgabenblätter, Fotos der handschriftlichen Lösungen) | eigenes **privates** Repo `mathe-material` | Folien sind urheberrechtlich geschützt und sollen nicht öffentlich im Netz stehen. Claude kann das private Repo in einer Session lesen. |
+| Lernfortschritt (wann wiederholt, wie gut gewusst, nächste Fälligkeit) | neues Supabase-Projekt | geräteübergreifend (Handy + Laptop), bleibt bei Content-Updates erhalten |
+
+### Wo läuft was?
+
+```
+ Handy / Laptop (Browser)
+   │  lädt die Seite von
+   ▼
+ GitHub Pages  ← baut automatisch aus dem main-Zweig von cikichris/mathe-tool
+   │  liest/schreibt Lernfortschritt bei
+   ▼
+ Supabase (neues Projekt): Login + Tabellen
+```
+
+- **Code oder Inhalte ändern** (neue Woche, Bugfix, neue Funktion):
+  Claude pusht auf einen Branch → du mergst den Pull Request nach `main` →
+  GitHub Pages ist nach ca. 1 Minute aktualisiert.
+- **Datenbank-Struktur ändern** (selten): Claude passt `supabase/schema.sql`
+  an → du führst sie im SQL-Editor von Supabase aus (wie beim
+  Wochenendplaner). Bestehender Fortschritt bleibt erhalten.
 
 ## 2. Inhaltsstruktur
 
@@ -30,7 +53,31 @@ Thema (z. B. "Konvergenz von Folgen")
 | **Satz** | Name / Situation | Aussage + Voraussetzungen |
 | **Verfahren** | „Wie berechne ich …?" | Schritt-für-Schritt-Rezept |
 | **Verständnis** | Wahr/Falsch, Multiple Choice | automatisch geprüft + Begründung |
-| **Rechenaufgabe** | Aufgabe (aus Übung oder abgewandelt) | Lösungsweg schrittweise aufdeckbar, Endergebnis ggf. automatisch prüfbar |
+| **Rechenaufgabe** | Aufgabe (aus Übung oder abgewandelt) | geführte Lösung (siehe unten), Endergebnis ggf. automatisch prüfbar |
+
+### „Privater Mathelehrer“: geführte Lösungen
+
+Jede Rechenaufgabe bekommt mehr als nur die Musterlösung:
+
+1. **Gestufte Tipps:** erst ein Denkanstoß („Welcher Typ DGL ist das?“), dann
+   ein konkreterer Hinweis, dann der erste Rechenschritt. Du deckst nur so viel
+   auf, wie du brauchst.
+2. **Kommentierter Lösungsweg:** jeder Schritt mit dem *Warum* („Wir
+   substituieren, weil …“) und Verweis auf die Folie mit dem passenden Satz.
+3. **Typische Fehler:** wo man bei diesem Aufgabentyp gern Punkte verliert.
+4. **Rezept für den Aufgabentyp:** allgemeines Vorgehen, das sich auf
+   Klausuraufgaben übertragen lässt.
+5. **Ähnliche Aufgaben:** von Claude erstellte Varianten mit anderen Zahlen
+   zum Festigen.
+
+Quellen: Aufgabenblätter mit Lösungen, deine handschriftlichen Lösungen aus
+der Übung (wo vorhanden) und von Claude erstellte Erklärungen. Jeder Schritt
+ist gekennzeichnet (offiziell / Mitschrift / Claude), damit klar ist, was
+geprüft ist.
+
+Optional später: ein Live-Tutor-Chat in der App (über die Claude-API per
+Supabase Edge Function). Dafür braucht es einen API-Key, und jede Frage
+kostet ein paar Cent.
 
 Jede Karte hat: ID, Woche, Quelle (z. B. „VL 7, Folie 12" / „Übung 4, A2"),
 Thema, Schwierigkeit.
@@ -75,8 +122,8 @@ karten:
 
 ## 4. Technik
 
-- Frontend: statische Web-App (wie beim Wochenendplaner), Hosting über
-  GitHub Pages / Vercel
+- Frontend: statische Web-App ohne Build-Schritt (HTML/JS wie beim
+  Wochenendplaner), Hosting über GitHub Pages, auf dem Handy installierbar
 - Formeln: KaTeX
 - Supabase: Auth (Magic Link per E-Mail) + Tabellen mit Row Level Security
   - `card_state` (user, card_id, fällig_am, intervall, ease, wiederholungen)
@@ -85,18 +132,13 @@ karten:
 
 ## 5. Workflow pro Woche
 
-1. Material der Woche (Folien/Skript-PDF, Übungsblatt, Lösungen bzw. eigene
-   Mitschrift) nach `material/woche-XX/` hochladen oder im Chat schicken.
+1. Material der Woche (Folien-PDF, Übungsblatt mit Lösungen, Fotos deiner
+   Mitschrift) ins private Repo `mathe-material` unter `woche-XX/` hochladen.
 2. Claude erstellt daraus `content/woche-XX.yaml` (Karten + Aufgaben).
 3. Kurz durchsehen, ggf. korrigieren → Merge → online.
 4. Wochen-Abfrage machen.
 
 ## 6. Offene Fragen
 
-- Welches Fach genau (Analysis, Lineare Algebra, Mathe für Ingenieure/BWL …)?
-- Klausurtermin und -format (Rechenaufgaben, Beweise, Verständnisfragen,
-  Hilfsmittel)?
-- Form des Materials: PDF-Folien, Skript, handschriftlich/Fotos?
-- Gibt es Musterlösungen zu den Übungen?
-- Gleiches Supabase-Projekt wie Wochenendplaner (eigene Tabellen) oder ein
-  neues Projekt?
+- Klausurtermin und erlaubte Hilfsmittel (Formelsammlung?)
+- Themenliste/Gliederung der Vorlesung (ergibt sich aus den Folien)
