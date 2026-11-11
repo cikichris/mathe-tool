@@ -51,6 +51,7 @@ alter table public.reviews    enable row level security;
 alter table public.user_data  enable row level security;
 
 revoke all on public.card_state, public.reviews, public.user_data from anon;
+grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.card_state, public.reviews, public.user_data to authenticated;
 
 drop policy if exists "eigene Zeilen" on public.card_state;
@@ -70,3 +71,6 @@ create policy "eigene Zeilen" on public.user_data
   for all to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
+
+-- API-Schema-Cache neu laden, damit die Tabellen sofort erreichbar sind
+notify pgrst, 'reload schema';
