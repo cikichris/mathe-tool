@@ -79,34 +79,13 @@ Optional später: ein Live-Tutor-Chat in der App (über die Claude-API per
 Supabase Edge Function). Dafür braucht es einen API-Key, und jede Frage
 kostet ein paar Cent.
 
-Jede Karte hat: ID, Woche, Quelle (z. B. „VL 7, Folie 12" / „Übung 4, A2"),
-Thema, Schwierigkeit.
+Jede Karte hat: ID, Typ, Thema und Quelle (z. B. „VL 3, Folie 16“ oder
+„Übung 1, Aufgabe 2 d“).
 
-Beispiel einer Datei `content/woche-05.yaml`:
-
-```yaml
-woche: 5
-vorlesungen: [9, 10]
-uebung: 5
-karten:
-  - id: w05-def-cauchy
-    typ: definition
-    thema: Folgen
-    quelle: "VL 9, S. 4"
-    frage: "Was ist eine Cauchy-Folge?"
-    antwort: |
-      $(a_n)$ heißt Cauchy-Folge, wenn
-      $\forall \varepsilon > 0\ \exists N\ \forall m,n \ge N: |a_m - a_n| < \varepsilon$.
-  - id: w05-ue-a2
-    typ: aufgabe
-    thema: Grenzwerte
-    quelle: "Übung 5, A2"
-    frage: "Berechne $\lim_{n\to\infty} \frac{3n^2+1}{n^2-n}$."
-    schritte:
-      - "Durch höchste Potenz $n^2$ teilen."
-      - "$\frac{3 + 1/n^2}{1 - 1/n}$"
-    ergebnis: "3"
-```
+Die Inhalte liegen als JavaScript-Dateien in `content/` (eine Datei pro
+Vorlesung bzw. Übung, z. B. `content/vl03.js`). Formeln stehen in
+LaTeX-Schreibweise zwischen Dollarzeichen. `content/index.js` ordnet die
+Dateien den Wochen zu. `node tools/check-content.mjs` prüft alle Dateien.
 
 ## 3. Lernmodi
 
@@ -130,17 +109,19 @@ karten:
 
 - Frontend: statische Web-App ohne Build-Schritt (HTML/JS wie beim
   Wochenendplaner), Hosting über GitHub Pages, auf dem Handy installierbar
-- Formeln: KaTeX
-- Supabase: Auth (Magic Link per E-Mail) + Tabellen mit Row Level Security
-  - `card_state` (user, card_id, fällig_am, intervall, ease, wiederholungen)
-  - `reviews` (user, card_id, bewertung, zeitpunkt) – Verlauf für Statistik
-  - `exam_sessions` (Klausur-Simulationen mit Ergebnis)
+- Formeln: KaTeX liegt im Ordner `vendor/` mit im Repo
+- Supabase: Login mit E-Mail und Passwort, Tabellen mit Row Level Security
+  - `card_state`: aktueller Stand jeder Karte (fällig am, Abstand, Faktor)
+  - `reviews`: Verlauf aller Bewertungen
+  - `user_data`: Einstellungen und Formelblatt-Auswahl
+- Der Lernstand wird immer zuerst im Browser gespeichert und danach mit
+  Supabase abgeglichen. Die App funktioniert deshalb auch ohne Login.
 
 ## 5. Workflow pro Woche
 
 1. Material der Woche (Folien-PDF, Übungsblatt mit Lösungen, Fotos deiner
    Mitschrift) ins private Repo `mathe-material` unter `woche-XX/` hochladen.
-2. Claude erstellt daraus `content/woche-XX.yaml` (Karten + Aufgaben).
+2. Claude erstellt daraus `content/vlXX.js` bzw. `content/ueXX.js`.
 3. Kurz durchsehen, ggf. korrigieren → Merge → online.
 4. Wochen-Abfrage machen.
 
@@ -149,3 +130,11 @@ karten:
 - Termin: Februar 2027
 - Hilfsmittel: ein A4-Blatt, beidseitig frei beschrieben (siehe Formelblatt-Builder)
 - Themenliste/Gliederung ergibt sich aus den Folien
+
+## 7. Stand
+
+Umgesetzt: Abfrage mit Wiederholungsplan, Inhaltsübersicht mit freiem Üben,
+Formelblatt mit Druckansicht, Einstellungen, Login und Abgleich.
+
+Noch offen: Klausur-Simulation mit Timer, Statistik über den Lernverlauf,
+automatische Prüfung von Zahlenergebnissen.
