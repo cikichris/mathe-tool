@@ -119,6 +119,12 @@ karten:
    Timer, Bewertung am Ende.
 4. **Dashboard**: Fortschritt pro Woche/Thema, Schwachstellen, fällige Karten,
    Countdown zur Klausur.
+5. **Formelblatt-Builder**: In der Klausur ist ein beidseitig beschriebenes
+   A4-Blatt erlaubt. Pro Woche schlägt Claude vor, welche Formeln und Rezepte
+   draufgehören. In der App lassen sich Einträge an- und abwählen. Am Ende
+   gibt es eine druckfertige, platzsparende Vorlage. Abfragen werden mit dem
+   Blatt geübt: Weniger Auswendiglernen von Formeln, mehr Gewicht auf
+   „Welches Verfahren passt hier?“ und sauberes Rechnen.
 
 ## 4. Technik
 
@@ -138,7 +144,8 @@ karten:
 3. Kurz durchsehen, ggf. korrigieren → Merge → online.
 4. Wochen-Abfrage machen.
 
-## 6. Offene Fragen
+## 6. Klausur
 
-- Klausurtermin und erlaubte Hilfsmittel (Formelsammlung?)
-- Themenliste/Gliederung der Vorlesung (ergibt sich aus den Folien)
+- Termin: Februar 2027
+- Hilfsmittel: ein A4-Blatt, beidseitig frei beschrieben (siehe Formelblatt-Builder)
+- Themenliste/Gliederung ergibt sich aus den Folien
