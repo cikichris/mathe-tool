@@ -10,6 +10,18 @@ export const TYP_LABEL = {
   aufgabe: 'Aufgabe',
 };
 
+export const TEIL_LABEL = {
+  besprechung: 'Aufgaben zur Besprechung',
+  praesenz: 'Präsenzaufgaben',
+};
+
+export const HERKUNFT_KURZ = {
+  offiziell: 'Offizielle Lösung',
+  vorlesung: 'Aus der Vorlesung',
+  claude: 'Lösung von Claude',
+  zusatz: 'Zusatz von Claude',
+};
+
 export const HERKUNFT_LABEL = {
   offiziell: 'Ergebnis aus der offiziellen Lösung, Erklärungen von Claude',
   vorlesung: 'In der Vorlesung vorgerechnet, Erklärungen von Claude',
@@ -41,4 +53,15 @@ for (const woche of WOCHEN) {
       sheetItems.push(item);
     }
   }
+}
+
+/** Übungsblätter mit Aufgaben, die in der Übung besprochen werden (oder Präsenzaufgaben). */
+export const uebungen = units
+  .filter((u) => u.art === 'uebung' && u.karten.some((c) => c.teil))
+  .sort((a, b) => a.nummer - b.nummer);
+
+/** Das Blatt, dessen Besprechung als Nächstes ansteht (heute zählt mit). */
+export function nextUebung(today) {
+  const open = uebungen.filter((u) => (u.besprechung || []).some((d) => d >= today));
+  return open[0] || uebungen[uebungen.length - 1] || null;
 }

@@ -134,7 +134,10 @@ Dateien den Wochen zu. `node tools/check-content.mjs` prüft alle Dateien.
 ## 7. Stand
 
 Umgesetzt: Abfrage mit Wiederholungsplan, Inhaltsübersicht mit freiem Üben,
+Übungsvorbereitung (Lösungswege zum Aufdecken während der Übung),
 Formelblatt mit Druckansicht, Einstellungen, Login und Abgleich.
+Inhalte: Vorlesung 1 bis 10 (Vorlesung 8 nur aus Übungsblatt 4 abgeleitet)
+und Übungsblatt 1 bis 5.
 
-Noch offen: Klausur-Simulation mit Timer, Statistik über den Lernverlauf,
-automatische Prüfung von Zahlenergebnissen.
+Noch offen: Präsenzaufgaben, Klausur-Simulation mit Timer, Statistik über den
+Lernverlauf, automatische Prüfung von Zahlenergebnissen.

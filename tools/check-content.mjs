@@ -45,6 +45,9 @@ for (const woche of WOCHEN) {
       if (unit[key] === undefined) errors.push(`${unit.id}: Feld "${key}" fehlt`);
     }
     checkMath(`${unit.id}.ueberblick`, unit.ueberblick);
+    for (const d of unit.besprechung || []) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) errors.push(`${unit.id}: Besprechungsdatum "${d}" nicht im Format JJJJ-MM-TT`);
+    }
     for (const card of unit.karten) {
       const w = card.id || `${unit.id}/(ohne id)`;
       allCards.push(card);
@@ -55,6 +58,12 @@ for (const woche of WOCHEN) {
       if (!TYPEN.includes(card.typ)) errors.push(`${w}: unbekannter typ "${card.typ}"`);
       for (const key of ['thema', 'quelle', 'frage']) if (!card[key]) errors.push(`${w}: Feld "${key}" fehlt`);
       if (card.herkunft && !HERKUNFT.includes(card.herkunft)) errors.push(`${w}: unbekannte herkunft`);
+      if (card.teil) {
+        if (!['besprechung', 'praesenz'].includes(card.teil)) errors.push(`${w}: unbekannter teil "${card.teil}"`);
+        if (unit.art !== 'uebung') errors.push(`${w}: teil gibt es nur bei Übungen`);
+        if (!card.nr) errors.push(`${w}: Aufgaben mit teil brauchen eine nr`);
+        if (!['aufgabe', 'verstaendnis'].includes(card.typ)) errors.push(`${w}: teil nur für Aufgaben und Verständnisfragen`);
+      }
       checkMath(`${w}.frage`, card.frage);
       checkMath(`${w}.merke`, card.merke);
 
