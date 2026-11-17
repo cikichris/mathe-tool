@@ -7,6 +7,8 @@
 //       Übung besprochen werden, bekommen teil: 'besprechung', Präsenzaufgaben
 //       teil: 'praesenz', und beide eine Nummer nr: '3 a)'. Sie erscheinen
 //       dann im Menüpunkt „Übung“.
+//       Lösungsschritte, die eine Formel oder Regel benutzen, bekommen
+//       q: Herkunft (Vorlesung und Folie bzw. „nicht auf den Folien“ mit Herleitung).
 //    2. hier importieren und in die passende Woche eintragen
 //    3. node tools/check-content.mjs ausführen
 //

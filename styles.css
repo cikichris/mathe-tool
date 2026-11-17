@@ -359,6 +359,18 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; bo
 /* Hohe Formeln (Brüche) in umbrochenen Zeilen nicht übereinanderlegen */
 :is(.step-text, .frage, .antwort, .result, .tip) .katex .base { margin-block: 0.12em; }
 .step-why { margin-top: 0.15rem; color: var(--muted); font-size: 0.9rem; }
+.step-source {
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.7rem;
+  border-left: 3px solid var(--c-verfahren);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--c-verfahren) 8%, var(--surface));
+  font-size: 0.86rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+.step-source p { display: inline; }
+.step-source-label { font-weight: 700; color: var(--c-verfahren); margin-right: 0.35rem; }
 .step-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .result { background: var(--right-bg); font-weight: 600; overflow-x: auto; }
 .pitfalls { background: var(--wrong-bg); }
