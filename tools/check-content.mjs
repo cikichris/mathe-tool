@@ -79,7 +79,7 @@ for (const woche of WOCHEN) {
         if (!card.ergebnis) errors.push(`${w}: ergebnis fehlt`);
         if (!card.herkunft) errors.push(`${w}: herkunft fehlt`);
         (card.tipps || []).forEach((t, i) => checkMath(`${w}.tipps[${i}]`, t));
-        (card.schritte || []).forEach((s, i) => { checkMath(`${w}.schritte[${i}].t`, s.t); checkMath(`${w}.schritte[${i}].w`, s.w); });
+        (card.schritte || []).forEach((s, i) => { checkMath(`${w}.schritte[${i}].t`, s.t); checkMath(`${w}.schritte[${i}].w`, s.w); checkMath(`${w}.schritte[${i}].q`, s.q); });
         (card.fehler || []).forEach((f, i) => checkMath(`${w}.fehler[${i}]`, f));
         checkMath(`${w}.ergebnis`, card.ergebnis);
       } else {

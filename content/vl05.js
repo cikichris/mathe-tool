@@ -140,12 +140,12 @@ a) $\log_5(25)$ $\quad$ b) $\log_2(8)$ $\quad$ c) $\log_4(1)$ $\quad$ d) $\log_{
         r`d) $4 = \sqrt{16}$. e) $\frac{1}{4} = 2^{-2}$.`,
       ],
       schritte: [
-        { t: r`a) $\log_5(25) = 2$, denn $5^2 = 25$` },
+        { t: r`a) $\log_5(25) = 2$, denn $5^2 = 25$`, q: r`VL 5, Folie 11: $\log_a(b) = c \Leftrightarrow a^c = b$` },
         { t: r`b) $\log_2(8) = 3$, denn $2^3 = 8$` },
         { t: r`c) $\log_4(1) = 0$, denn $4^0 = 1$` },
-        { t: r`d) $\log_{16}(4) = \frac{1}{2}$, denn $16^{\frac{1}{2}} = \sqrt{16} = 4$` },
-        { t: r`e) $\log_2\left(\frac{1}{4}\right) = -2$, denn $2^{-2} = \frac{1}{2^2} = \frac{1}{4}$` },
-        { t: r`f) $\ln(e) = 1$, denn $e^1 = e$` },
+        { t: r`d) $\log_{16}(4) = \frac{1}{2}$, denn $16^{\frac{1}{2}} = \sqrt{16} = 4$`, q: r`VL 5, Folie 3: $a^{\frac{1}{n}} = \sqrt[n]{a}$` },
+        { t: r`e) $\log_2\left(\frac{1}{4}\right) = -2$, denn $2^{-2} = \frac{1}{2^2} = \frac{1}{4}$`, q: r`VL 5, Folie 3: $a^{-n} = \frac{1}{a^n}$` },
+        { t: r`f) $\ln(e) = 1$, denn $e^1 = e$`, q: r`VL 5, Folie 12: $\ln = \log_e$, also $\ln(e^c) = c$ und $e^{\ln(b)} = b$ (VL 5, Folie 11).` },
       ],
       ergebnis: r`a) 2 $\quad$ b) 3 $\quad$ c) 0 $\quad$ d) $\frac{1}{2}$ $\quad$ e) $-2$ $\quad$ f) 1`,
       fehler: [

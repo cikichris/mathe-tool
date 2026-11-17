@@ -100,7 +100,7 @@ function cardHead(card) {
 
 function stepsHtml(card, stepsShown) {
   const steps = (card.schritte || []).slice(0, stepsShown);
-  return `<ol class="steps">${steps.map((s) => `<li><div class="step-text">${fmt(s.t)}</div>${s.w ? `<div class="step-why">${fmt(s.w)}</div>` : ''}</li>`).join('')}</ol>`;
+  return `<ol class="steps">${steps.map((s) => `<li><div class="step-text">${fmt(s.t)}</div>${s.w ? `<div class="step-why">${fmt(s.w)}</div>` : ''}${s.q ? `<div class="step-source"><span class="step-source-label">Woher?</span>${fmt(s.q)}</div>` : ''}</li>`).join('')}</ol>`;
 }
 
 function resultHtml(card) {

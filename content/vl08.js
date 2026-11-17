@@ -102,9 +102,9 @@ Für $\gamma = 90^\circ$: $\ \sin(\alpha) = \frac{a}{c}$, $\ \cos(\alpha) = \fra
         r`$a$ ist die Gegenkathete von $\alpha$: $\sin(\alpha) = \frac{a}{c}$.`,
       ],
       schritte: [
-        { t: r`$\beta = 180^\circ - 90^\circ - 40^\circ = 50^\circ$` },
-        { t: r`$\sin(40^\circ) = \dfrac{a}{5} \Leftrightarrow a = 5 \cdot \sin(40^\circ) \approx 3{,}2$ cm` },
-        { t: r`$\cos(40^\circ) = \dfrac{b}{5} \Leftrightarrow b = 5 \cdot \cos(40^\circ) \approx 3{,}8$ cm`, w: r`Kontrolle mit Pythagoras: $3{,}21^2 + 3{,}83^2 \approx 25 = 5^2$.` },
+        { t: r`$\beta = 180^\circ - 90^\circ - 40^\circ = 50^\circ$`, q: r`Selbststudium VL 8 / Schulwissen: Innenwinkelsumme im Dreieck $\alpha + \beta + \gamma = 180^\circ$.` },
+        { t: r`$\sin(40^\circ) = \dfrac{a}{5} \Leftrightarrow a = 5 \cdot \sin(40^\circ) \approx 3{,}2$ cm`, q: r`Selbststudium VL 8 / Schulwissen: im rechtwinkligen Dreieck $\sin = \frac{\text{Gegenkathete}}{\text{Hypotenuse}}$` },
+        { t: r`$\cos(40^\circ) = \dfrac{b}{5} \Leftrightarrow b = 5 \cdot \cos(40^\circ) \approx 3{,}8$ cm`, w: r`Kontrolle mit Pythagoras: $3{,}21^2 + 3{,}83^2 \approx 25 = 5^2$.`, q: r`Selbststudium VL 8 / Schulwissen: im rechtwinkligen Dreieck $\cos = \frac{\text{Ankathete}}{\text{Hypotenuse}}$` },
       ],
       ergebnis: r`$\beta = 50^\circ$, $a \approx 3{,}2$ cm, $b \approx 3{,}8$ cm`,
       fehler: [r`Taschenrechner im Bogenmaß-Modus (RAD): $\sin(40)$ ergibt dann etwa $0{,}745$ statt $0{,}643$.`],
