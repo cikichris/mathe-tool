@@ -9,6 +9,10 @@
 //       dann im Menüpunkt „Übung“.
 //       Lösungsschritte, die eine Formel oder Regel benutzen, bekommen
 //       q: Herkunft (Vorlesung und Folie bzw. „nicht auf den Folien“ mit Herleitung).
+//       Nach der Übung: abgleich: { datum, status: 'bestaetigt' | 'abweichung' |
+//       'ergaenzt', text } an der Aufgabe eintragen (aus Fotos von Musterlösung
+//       und eigener Lösung, die im Chat geschickt werden).
+//    Neue Aufgabentypen auch im Schnelltraining ergänzen: content/methoden.js
 //    2. hier importieren und in die passende Woche eintragen
 //    3. node tools/check-content.mjs ausführen
 //

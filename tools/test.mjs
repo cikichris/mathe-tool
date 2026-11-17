@@ -131,3 +131,16 @@ test('nächste Übung: heute zählt mit, danach das letzte Blatt', async () => {
   assert.equal(nextUebung('2026-10-01').id, 'ue01');
   assert.equal(nextUebung('2027-03-01').id, uebungen[uebungen.length - 1].id);
 });
+
+test('Schnelltraining: Statistik wird gespeichert und abgeglichen', () => {
+  store.resetAll();
+  store.recordDrill('m-p01', true, '2026-11-17');
+  store.recordDrill('m-p01', false, '2026-11-17');
+  assert.deepEqual(store.drillStats()['m-p01'], [1, 1, '2026-11-17']);
+  const box = store.outbox();
+  assert.equal(box.userData.find((r) => r.key === 'drill').value.stats['m-p01'][0], 1);
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  store.applyRemote({ userData: [{ key: 'drill', value: { stats: { 'm-e01': [3, 0, '2026-11-18'] } }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
+  assert.deepEqual(store.drillStats(), { 'm-e01': [3, 0, '2026-11-18'] });
+});

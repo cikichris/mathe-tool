@@ -22,6 +22,7 @@ import {
   dateStr, daysBetween, isNew, isDue, stage, schedule, intervalLabel,
 } from './srs.js';
 import { COURSE_NAME } from '../config.js';
+import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
 
 const view = document.getElementById('view');
 let session = null;
@@ -107,8 +108,29 @@ function resultHtml(card) {
   return `<div class="result"><span class="result-label">Ergebnis</span>${fmt(card.ergebnis)}</div>`;
 }
 
+const ABGLEICH_LABEL = {
+  bestaetigt: 'In der Übung bestätigt',
+  abweichung: 'Abweichung zur Übung',
+  ergaenzt: 'Weg aus der Übung',
+};
+
 function originHtml(card) {
+  if (card.abgleich) {
+    return card.abgleich.status === 'bestaetigt'
+      ? `<p class="origin origin-abgeglichen">Lösung in der Übung am ${shortDate(card.abgleich.datum)} bestätigt</p>`
+      : `<p class="origin origin-abgeglichen">Am ${shortDate(card.abgleich.datum)} mit der Übung abgeglichen, Hinweis oben beachten</p>`;
+  }
   return card.herkunft ? `<p class="origin origin-${card.herkunft}">${esc(HERKUNFT_LABEL[card.herkunft])}</p>` : '';
+}
+
+/** Ergebnis des Abgleichs mit der Musterlösung bzw. Mitschrift aus der Übung. */
+function abgleichHtml(card) {
+  const a = card.abgleich;
+  if (!a) return '';
+  return `<div class="abgleich abgleich-${a.status}">
+    <span class="abgleich-label">${ABGLEICH_LABEL[a.status]} · ${shortDate(a.datum)}</span>
+    ${fmt(a.text)}
+  </div>`;
 }
 
 /** Alles, was nach dem letzten Schritt kommt: Skizze, Ergebnis, Fehler, Rezept, Herkunft. */
@@ -116,6 +138,7 @@ function solutionEndHtml(card, withResult = true) {
   let html = '';
   if (card.plotLoesung) html += plotSVG(card.plotLoesung);
   if (withResult) html += resultHtml(card);
+  html += abgleichHtml(card);
   if (card.fehler?.length) {
     html += `<div class="pitfalls"><h3>Typische Fehler</h3><ul>${card.fehler.map((f) => `<li>${fmt(f)}</li>`).join('')}</ul></div>`;
   }
@@ -178,8 +201,8 @@ function cardBody(card, ui, browse = false) {
           ? '<p class="verdict verdict-right">Richtig.</p>'
           : '<p class="verdict verdict-wrong">Das stimmt nicht. Die richtige Antwort ist markiert.</p>';
       }
-      html += `<div class="antwort">${fmt(card.erklaerung)}</div>`;
-      if (card.herkunft === 'claude' || card.herkunft === 'zusatz') html += `<p class="origin origin-${card.herkunft}">${esc(HERKUNFT_LABEL[card.herkunft])}</p>`;
+      html += `<div class="antwort">${fmt(card.erklaerung)}</div>${abgleichHtml(card)}`;
+      if (card.herkunft === 'claude' || card.herkunft === 'zusatz' || card.abgleich) html += originHtml(card);
     }
     return html;
   }
@@ -369,6 +392,7 @@ function renderHome() {
     </header>
     <div class="panel today">${today}</div>
     ${prepTeaser()}
+    ${drillTeaser()}
 
     <h2>Fortschritt</h2>
     <div class="legend">
@@ -455,7 +479,8 @@ function prepButton(action, id, label, cls = '') {
 
 function prepCardHtml(card) {
   const ui = prepState(card.id);
-  const tag = card.herkunft ? `<span class="prep-tag prep-tag-${card.herkunft}">${HERKUNFT_KURZ[card.herkunft]}</span>` : '';
+  let tag = card.herkunft ? `<span class="prep-tag prep-tag-${card.herkunft}">${HERKUNFT_KURZ[card.herkunft]}</span>` : '';
+  if (card.abgleich) tag = `<span class="prep-tag prep-tag-abgleich-${card.abgleich.status}">${ABGLEICH_LABEL[card.abgleich.status]}</span>`;
   let html = `<article class="card prep-card card-${card.typ}" id="prep-${card.id}">
     <header class="card-head"><span class="prep-nr">Aufgabe ${esc(card.nr || '')}</span>${tag}<span class="card-quelle">${esc(card.thema)}</span></header>
     <div class="frage">${fmt(card.frage)}</div>`;
@@ -463,7 +488,7 @@ function prepCardHtml(card) {
 
   if (card.typ === 'verstaendnis') {
     if (ui.answer) {
-      html += `<div class="antwort"><p class="prep-answer">${fmt(card.optionen[card.richtig])}</p>${fmt(card.erklaerung)}</div>${originHtml(card)}`;
+      html += `<div class="antwort"><p class="prep-answer">${fmt(card.optionen[card.richtig])}</p>${fmt(card.erklaerung)}</div>${abgleichHtml(card)}${originHtml(card)}`;
       html += `<div class="prep-actions">${prepButton('prep-reset', card.id, 'Zuklappen', 'btn-quiet')}</div>`;
     } else {
       html += `<div class="prep-actions">${prepButton('prep-answer', card.id, 'Antwort zeigen', 'btn-primary')}</div>`;
@@ -503,6 +528,15 @@ function prepDates(unit) {
   return (unit.besprechung || []).map((d) => (d === today ? `${shortDate(d)} (heute)` : shortDate(d))).join(' · ');
 }
 
+function abgleichSummary(unit) {
+  const tasks = unit.karten.filter((c) => c.teil);
+  const done = tasks.filter((c) => c.abgleich).length;
+  if (!tasks.length) return '';
+  return done
+    ? `<p class="muted small">${done} von ${tasks.length} Aufgaben mit der Übung abgeglichen</p>`
+    : '<p class="muted small">Noch nicht mit der Übung abgeglichen. Schick Claude nach der Übung Fotos von Musterlösung und deiner Lösung.</p>';
+}
+
 function renderPrep(id) {
   const unit = unitById.get(id) || nextUebung(dateStr());
   if (!unit) {
@@ -534,6 +568,7 @@ function renderPrep(id) {
     <div class="panel prep-head">
       <p class="prep-title">Übungsblatt ${unit.nummer}: ${esc(unit.titel)}</p>
       ${unit.besprechung?.length ? `<p class="muted small">Besprechung ${prepDates(unit)}</p>` : ''}
+      ${abgleichSummary(unit)}
       <a class="small" href="#/inhalte/${unit.id}">Alle Karten dieses Blatts</a>
     </div>
     ${sections}
@@ -550,6 +585,150 @@ function prepTeaser() {
   const when = date === today ? 'heute' : shortDate(date);
   return `<a class="panel prep-teaser" href="#/uebung/${unit.id}">
     <span><strong>Übung ${when}</strong><span class="muted"> · Blatt ${unit.nummer}, ${plural(n, 'Aufgabe', 'Aufgaben')} mit Lösungsweg</span></span>
+    <span class="prep-teaser-go" aria-hidden="true">›</span>
+  </a>`;
+}
+
+// ---------------------------------------------------------------------
+//  Methode erkennen (Schnelltraining)
+// ---------------------------------------------------------------------
+
+const DRILL_LEN = 10;
+const aufgabeById = new Map(AUFGABEN.map((a) => [a.id, a]));
+const gruppeById = new Map(GRUPPEN.map((g) => [g.id, g]));
+let drill = null;
+let drillFilter = 'alle';
+
+function drillPool() {
+  return drillFilter === 'alle' ? AUFGABEN : AUFGABEN.filter((a) => a.g === drillFilter);
+}
+
+/** Gewichtete Auswahl: oft falsch beantwortete und neue Aufgaben kommen häufiger. */
+function pickDrill(pool, n) {
+  const stats = store.drillStats();
+  const weighted = pool.map((a) => {
+    const [right = 0, wrong = 0] = stats[a.id] || [];
+    const w = (right + wrong === 0 ? 3 : 1) + 3 * wrong - 0.5 * right;
+    return { a, w: Math.max(0.3, w) };
+  });
+  const out = [];
+  while (out.length < n && weighted.length) {
+    const total = weighted.reduce((sum, x) => sum + x.w, 0);
+    let roll = Math.random() * total;
+    const idx = weighted.findIndex((x) => (roll -= x.w) <= 0);
+    out.push(weighted.splice(idx === -1 ? weighted.length - 1 : idx, 1)[0].a.id);
+  }
+  return out;
+}
+
+function drillOptions(item) {
+  const group = gruppeById.get(item.g);
+  const others = group.methoden.filter((m) => m !== item.m && !(item.auch || []).includes(m));
+  const pick = shuffled(others.length).slice(0, 3).map((i) => others[i]);
+  const all = [item.m, ...pick];
+  return shuffled(all.length).map((i) => all[i]);
+}
+
+function startDrill() {
+  const ids = pickDrill(drillPool(), DRILL_LEN);
+  if (!ids.length) return;
+  drill = { ids, i: 0, picked: null, options: drillOptions(aufgabeById.get(ids[0])), right: 0, missed: [], start: Date.now() };
+  renderDrill();
+  window.scrollTo(0, 0);
+}
+
+function drillStatsSummary(pool) {
+  const stats = store.drillStats();
+  let right = 0;
+  let total = 0;
+  for (const a of pool) {
+    const [r = 0, w = 0] = stats[a.id] || [];
+    right += r;
+    total += r + w;
+  }
+  return { right, total };
+}
+
+function renderDrillStart() {
+  document.body.classList.remove('in-session');
+  const chips = [{ id: 'alle', titel: 'Alle' }, ...GRUPPEN].map((g) => {
+    const n = g.id === 'alle' ? AUFGABEN.length : AUFGABEN.filter((a) => a.g === g.id).length;
+    return `<button class="chip ${drillFilter === g.id ? 'is-current' : ''}" data-action="drill-filter" data-g="${g.id}">${esc(g.titel)} <span>${n}</span></button>`;
+  }).join('');
+  const pool = drillPool();
+  const { right, total } = drillStatsSummary(pool);
+  const stats = store.drillStats();
+  const weak = pool
+    .filter((a) => (stats[a.id]?.[1] || 0) > 0)
+    .sort((a, b) => stats[b.id][1] - stats[a.id][1])
+    .slice(0, 3);
+  show(`<section class="drill">
+    <a class="back" href="#/">Heute</a>
+    <header class="page-head">
+      <p class="eyebrow">Schnelltraining</p>
+      <h1>Methode erkennen</h1>
+      <p class="muted">Du siehst nur die Aufgabe und wählst, wie man sie angeht. Nicht rechnen, nur entscheiden. ${DRILL_LEN} Aufgaben dauern etwa zwei Minuten.</p>
+    </header>
+    <nav class="chip-row" aria-label="Thema wählen">${chips}</nav>
+    <button class="btn btn-primary btn-wide" data-action="drill-start">${Math.min(DRILL_LEN, pool.length)} Aufgaben starten</button>
+    ${total ? `<p class="muted small drill-stat">Bisher ${right} von ${total} Antworten richtig (${Math.round((right / total) * 100)} %).</p>` : ''}
+    ${weak.length ? `<h2>Schwachstellen</h2><div class="panel"><ul class="weak-list">${weak.map((a) => `<li>${fmt(a.a)}<small>richtig wäre: ${fmt(METHODEN[a.m])}</small></li>`).join('')}</ul></div>` : ''}
+  </section>`);
+}
+
+function renderDrill() {
+  if (!drill) { renderDrillStart(); return; }
+  document.body.classList.add('in-session');
+  if (drill.i >= drill.ids.length) {
+    const secs = Math.round((Date.now() - drill.start) / 1000);
+    const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    const missed = drill.missed.map((id) => aufgabeById.get(id));
+    show(`<section class="summary drill-summary">
+      <h1>${drill.right} von ${drill.ids.length} richtig</h1>
+      <p class="summary-main">in ${time} Minuten</p>
+      ${missed.length ? `<div class="panel drill-missed"><h2>Noch einmal anschauen</h2><ul class="weak-list">${missed.map((a) => `<li>${fmt(a.a)}<small>${fmt(METHODEN[a.m])}</small></li>`).join('')}</ul></div>`
+        : '<p class="muted">Alles richtig erkannt.</p>'}
+      <div class="action-row">
+        <button class="btn btn-primary" data-action="drill-start">Nochmal ${DRILL_LEN}</button>
+        <button class="btn" data-action="drill-exit">Zur Übersicht</button>
+      </div>
+    </section>`);
+    return;
+  }
+  const item = aufgabeById.get(drill.ids[drill.i]);
+  const answered = drill.picked !== null;
+  const pct = Math.round((drill.i / drill.ids.length) * 100);
+  const options = drill.options.map((m, k) => {
+    let cls = 'option';
+    if (answered && m === item.m) cls += ' is-right';
+    else if (answered && drill.picked === m) cls += ' is-wrong';
+    return `<button class="${cls}" data-action="drill-pick" data-m="${m}" ${answered ? 'disabled' : ''}><span class="option-key">${k + 1}</span>${fmt(METHODEN[m])}</button>`;
+  }).join('');
+  let feedback = '';
+  if (answered) {
+    feedback = `${drill.picked === item.m ? '<p class="verdict verdict-right">Richtig.</p>' : '<p class="verdict verdict-wrong">Nicht ganz. Die passende Methode ist markiert.</p>'}
+      <div class="antwort"><span class="merke-label">Woran erkennt man das?</span>${fmt(item.w)}</div>
+      <div class="step-source"><span class="step-source-label">Woher?</span>${fmt(item.q)}</div>`;
+  }
+  show(`<section class="session drill-run">
+    <div class="session-bar">
+      <button class="session-close" data-action="drill-exit">Beenden</button>
+      <div class="session-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${drill.ids.length}" aria-valuenow="${drill.i}"><span style="width:${pct}%"></span></div>
+      <span class="session-count">${drill.i + 1} / ${drill.ids.length}</span>
+    </div>
+    <article class="card card-verfahren">
+      <header class="card-head"><span class="badge badge-verfahren">${esc(item.f || 'Welche Methode passt?')}</span><span class="card-quelle">${esc(gruppeById.get(item.g).titel)}</span></header>
+      <div class="frage">${fmt(item.a)}</div>
+      <div class="options">${options}</div>
+      ${feedback}
+    </article>
+    <div class="actions">${answered ? `<button class="btn btn-primary btn-wide" data-action="drill-next">${drill.i + 1 < drill.ids.length ? 'Weiter' : 'Auswertung'}</button>` : ''}</div>
+  </section>`);
+}
+
+function drillTeaser() {
+  return `<a class="panel prep-teaser drill-teaser" href="#/methoden">
+    <span><strong>Zwischendurch: Methode erkennen</strong><span class="muted"> · ${DRILL_LEN} Aufgaben, ca. 2 Minuten</span></span>
     <span class="prep-teaser-go" aria-hidden="true">›</span>
   </a>`;
 }
@@ -672,6 +851,7 @@ function route() {
   if (name === 'inhalte' && arg) renderUnit(arg);
   else if (name === 'inhalte') renderContents();
   else if (name === 'uebung') renderPrep(arg);
+  else if (name === 'methoden') renderDrill();
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
   else renderHome();
@@ -713,6 +893,26 @@ const actions = {
     renderSession();
   },
   rate: (el) => rateCurrent(Number(el.dataset.r)),
+  'drill-filter': (el) => { drillFilter = el.dataset.g; renderDrillStart(); },
+  'drill-start': () => startDrill(),
+  'drill-pick': (el) => {
+    if (drill.picked !== null) return;
+    const item = aufgabeById.get(drill.ids[drill.i]);
+    drill.picked = el.dataset.m;
+    const ok = drill.picked === item.m;
+    if (ok) drill.right += 1;
+    else drill.missed.push(item.id);
+    store.recordDrill(item.id, ok);
+    renderDrill();
+  },
+  'drill-next': () => {
+    drill.i += 1;
+    drill.picked = null;
+    if (drill.i < drill.ids.length) drill.options = drillOptions(aufgabeById.get(drill.ids[drill.i]));
+    renderDrill();
+    window.scrollTo(0, 0);
+  },
+  'drill-exit': () => { drill = null; renderDrillStart(); window.scrollTo(0, 0); },
   'prep-tip': (el) => { prepState(el.dataset.card).tips += 1; rerenderPrepCard(el.dataset.card); },
   'prep-step': (el) => { prepState(el.dataset.card).steps += 1; rerenderPrepCard(el.dataset.card); },
   'prep-result': (el) => { prepState(el.dataset.card).result = true; rerenderPrepCard(el.dataset.card); },
@@ -782,6 +982,13 @@ document.addEventListener('submit', async (event) => {
 
 // Tastatur: Leertaste deckt auf, 1 bis 4 bewerten
 document.addEventListener('keydown', (event) => {
+  if (currentRoute().name === 'methoden' && drill && !event.target.closest('input, textarea, select')) {
+    const sel = /^[1-4]$/.test(event.key) ? `[data-action="drill-pick"]:nth-child(${event.key})`
+      : (event.key === 'Enter' || event.key === ' ') ? '[data-action="drill-next"]' : null;
+    const btn = sel && view.querySelector(sel);
+    if (btn) { event.preventDefault(); btn.click(); }
+    return;
+  }
   if (!session || session.finished || currentRoute().name !== 'lernen') return;
   if (event.target.closest('input, textarea, select') || event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.key === ' ' || event.key === 'Enter') {
