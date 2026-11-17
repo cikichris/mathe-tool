@@ -263,6 +263,7 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; bo
 .weak-list { list-style: none; padding: 0; }
 .weak-list li { padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
 .weak-list li p { display: inline; }
+.weak-list li:last-child { border-bottom: 0; padding-bottom: 0; }
 .weak-list small { display: block; color: var(--muted); }
 
 /* ---------- Karte ---------- */
@@ -488,6 +489,42 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; bo
 }
 .prep-teaser:hover { border-color: var(--accent); }
 .prep-teaser-go { font-size: 1.6rem; line-height: 1; color: var(--accent); }
+
+/* ---------- Methode erkennen ---------- */
+
+.chip-row button.chip { font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--muted); }
+.chip-row .chip span { opacity: 0.7; font-weight: 500; }
+.chip-row .chip.is-current span { opacity: 0.85; }
+.drill .btn-wide { margin-bottom: 0.8rem; }
+.drill-stat { margin-top: 0.2rem; }
+.option-key {
+  display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; margin-right: 0.6rem;
+  border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 0.8rem; font-weight: 700; vertical-align: 0.1em;
+}
+.option p { display: inline; }
+.drill-run .step-source { margin-top: 0.8rem; }
+.drill-summary { padding-top: 8vh; }
+.drill-missed { text-align: left; margin-top: 1.2rem; }
+.drill-missed h2 { margin-top: 0; }
+.weak-list li p { display: inline; }
+.weak-list small p { display: inline; }
+.drill-teaser { margin-top: 0.6rem; }
+button.session-close { background: none; border: 0; font: inherit; cursor: pointer; }
+
+/* ---------- Abgleich mit der Übung ---------- */
+
+.abgleich { margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 10px; line-height: 1.6; border: 1px solid var(--line); }
+.abgleich-label { display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.2rem; }
+.abgleich-bestaetigt { background: var(--right-bg); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.abgleich-bestaetigt .abgleich-label { color: var(--good); }
+.abgleich-abweichung { background: var(--merke-bg); border-color: color-mix(in srgb, var(--hard) 40%, transparent); }
+.abgleich-abweichung .abgleich-label { color: var(--hard); }
+.abgleich-ergaenzt { background: var(--tip-bg); }
+.abgleich-ergaenzt .abgleich-label { color: var(--accent); }
+.origin-abgeglichen { color: var(--good); }
+.prep-tag-abgleich-bestaetigt { background: var(--right-bg); color: var(--good); }
+.prep-tag-abgleich-abweichung { background: var(--merke-bg); color: var(--hard); }
+.prep-tag-abgleich-ergaenzt { background: var(--tip-bg); color: var(--accent); }
 
 /* ---------- Formelblatt ---------- */
 

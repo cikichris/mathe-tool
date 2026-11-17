@@ -4,6 +4,7 @@
 //   node tools/check-content.mjs
 import { createRequire } from 'node:module';
 import { WOCHEN } from '../content/index.js';
+import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -58,6 +59,13 @@ for (const woche of WOCHEN) {
       if (!TYPEN.includes(card.typ)) errors.push(`${w}: unbekannter typ "${card.typ}"`);
       for (const key of ['thema', 'quelle', 'frage']) if (!card[key]) errors.push(`${w}: Feld "${key}" fehlt`);
       if (card.herkunft && !HERKUNFT.includes(card.herkunft)) errors.push(`${w}: unbekannte herkunft`);
+      if (card.abgleich) {
+        const a = card.abgleich;
+        if (!['bestaetigt', 'abweichung', 'ergaenzt'].includes(a.status)) errors.push(`${w}: abgleich.status unbekannt`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(a.datum || '')) errors.push(`${w}: abgleich.datum fehlt oder falsches Format`);
+        if (!a.text) errors.push(`${w}: abgleich.text fehlt`);
+        checkMath(`${w}.abgleich.text`, a.text);
+      }
       if (card.teil) {
         if (!['besprechung', 'praesenz'].includes(card.teil)) errors.push(`${w}: unbekannter teil "${card.teil}"`);
         if (unit.art !== 'uebung') errors.push(`${w}: teil gibt es nur bei Übungen`);
@@ -106,6 +114,25 @@ for (const woche of WOCHEN) {
 for (const card of allCards) {
   if (card.rezept && !ids.has(card.rezept)) errors.push(`${card.id}: rezept "${card.rezept}" gibt es nicht`);
 }
+
+// Schnelltraining „Methode erkennen“
+const drillIds = new Set();
+const gruppen = new Map(GRUPPEN.map((g) => [g.id, g]));
+for (const [key, label] of Object.entries(METHODEN)) checkMath(`methode ${key}`, label);
+for (const g of GRUPPEN) for (const m of g.methoden) if (!METHODEN[m]) errors.push(`Gruppe ${g.id}: Methode "${m}" unbekannt`);
+for (const a of AUFGABEN) {
+  const w = a.id || '(Methoden-Aufgabe ohne id)';
+  if (drillIds.has(a.id)) errors.push(`${w}: id doppelt`);
+  drillIds.add(a.id);
+  if (!gruppen.has(a.g)) errors.push(`${w}: Gruppe "${a.g}" unbekannt`);
+  if (!METHODEN[a.m]) errors.push(`${w}: Methode "${a.m}" unbekannt`);
+  for (const m of a.auch || []) if (!METHODEN[m]) errors.push(`${w}: auch-Methode "${m}" unbekannt`);
+  if (gruppen.has(a.g) && gruppen.get(a.g).methoden.filter((m) => m !== a.m && !(a.auch || []).includes(m)).length < 2) {
+    errors.push(`${w}: zu wenige falsche Antwortmöglichkeiten`);
+  }
+  for (const key of ['a', 'w', 'q']) { if (!a[key]) errors.push(`${w}: Feld "${key}" fehlt`); checkMath(`${w}.${key}`, a[key]); }
+}
+console.log(`${AUFGABEN.length} Aufgaben im Schnelltraining`);
 
 const byType = {};
 for (const c of allCards) byType[c.typ] = (byType[c.typ] || 0) + 1;

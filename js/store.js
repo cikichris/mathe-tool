@@ -19,6 +19,8 @@ function blank() {
     settingsDirty: false,
     sheet: { sel: {}, upd: 0 },   // Formelblatt: item_id -> true/false
     sheetDirty: false,
+    drill: { stats: {}, upd: 0 }, // Methode erkennen: aufgabe_id -> [richtig, falsch, letztes Datum]
+    drillDirty: false,
   };
 }
 
@@ -36,6 +38,7 @@ export function load() {
   try {
     const raw = globalThis.localStorage.getItem(KEY);
     if (raw) state = { ...blank(), ...JSON.parse(raw) };
+    state.drill ||= blank().drill;
   } catch {
     memoryOnly = true; // privater Modus o. Ä.: Stand gilt nur für diese Sitzung
   }
@@ -95,6 +98,16 @@ export function setSheetSelected(itemId, on) {
   state.sheet.sel[itemId] = on;
   state.sheet.upd = Date.now();
   state.sheetDirty = true;
+  save();
+}
+
+export const drillStats = () => state.drill.stats;
+
+export function recordDrill(id, correct, today = dateStr()) {
+  const [right = 0, wrong = 0] = state.drill.stats[id] || [];
+  state.drill.stats[id] = correct ? [right + 1, wrong, today] : [right, wrong + 1, today];
+  state.drill.upd = Date.now();
+  state.drillDirty = true;
   save();
 }
 
@@ -158,6 +171,7 @@ export function applyRemote({ cards = [], userData = [] }) {
 
   let seenSettings = false;
   let seenSheet = false;
+  let seenDrill = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -166,6 +180,13 @@ export function applyRemote({ cards = [], userData = [] }) {
         state.settings = { ...blank().settings, ...row.value, upd: remoteUpd };
         state.settingsDirty = false;
       } else if (state.settings.upd > remoteUpd) state.settingsDirty = true;
+    }
+    if (row.key === 'drill') {
+      seenDrill = true;
+      if (remoteUpd > state.drill.upd) {
+        state.drill = { stats: row.value?.stats || {}, upd: remoteUpd };
+        state.drillDirty = false;
+      } else if (state.drill.upd > remoteUpd) state.drillDirty = true;
     }
     if (row.key === 'sheet') {
       seenSheet = true;
@@ -177,6 +198,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   }
   if (!seenSettings && state.settings.upd) state.settingsDirty = true;
   if (!seenSheet && state.sheet.upd) state.sheetDirty = true;
+  if (!seenDrill && state.drill.upd) state.drillDirty = true;
   save();
 }
 
@@ -193,6 +215,9 @@ export function outbox() {
   if (state.sheetDirty) {
     userData.push({ key: 'sheet', value: { sel: state.sheet.sel }, updated_at: new Date(state.sheet.upd).toISOString() });
   }
+  if (state.drillDirty) {
+    userData.push({ key: 'drill', value: { stats: state.drill.stats }, updated_at: new Date(state.drill.upd).toISOString() });
+  }
   return { cards, reviews: [...state.pending], userData };
 }
 
@@ -208,10 +233,11 @@ export function markPushed(box) {
   for (const row of box.userData) {
     if (row.key === 'settings' && new Date(state.settings.upd).toISOString() === row.updated_at) state.settingsDirty = false;
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
+    if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
   }
   save();
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty;
 }
