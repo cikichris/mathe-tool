@@ -11,7 +11,10 @@
 // =====================================================================
 import * as store from './store.js';
 import * as sync from './sync.js';
-import { weeks, cards, cardById, unitById, sheetItems, TYP_LABEL, HERKUNFT_LABEL } from './content.js';
+import {
+  weeks, cards, cardById, unitById, sheetItems, uebungen, nextUebung,
+  TYP_LABEL, HERKUNFT_LABEL, HERKUNFT_KURZ, TEIL_LABEL,
+} from './content.js';
 import { fmt, esc, typeset } from './render.js';
 import { plotSVG } from './plot.js';
 import {
@@ -35,6 +38,14 @@ function germanDate(str) {
   if (!str) return '';
   const [y, m, d] = str.split('-');
   return `${d}.${m}.${y}`;
+}
+
+const WOCHENTAG = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+/** '2026-11-17' -> 'Di 17.11.' */
+function shortDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return `${WOCHENTAG[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.`;
 }
 
 function shuffled(n) {
@@ -87,23 +98,24 @@ function cardHead(card) {
   </header>`;
 }
 
-function solutionHtml(card, stepsShown) {
-  const steps = card.schritte || [];
-  const all = stepsShown >= steps.length;
-  let html = '<div class="solution"><h3>Lösungsweg</h3><ol class="steps">';
-  steps.slice(0, stepsShown).forEach((s) => {
-    html += `<li><div class="step-text">${fmt(s.t)}</div>${s.w ? `<div class="step-why">${fmt(s.w)}</div>` : ''}</li>`;
-  });
-  html += '</ol>';
-  if (!all) {
-    html += `<div class="step-actions">
-      <button class="btn" data-action="step">Nächster Schritt (${stepsShown + 1}/${steps.length})</button>
-      <button class="btn btn-quiet" data-action="steps-all">Alle zeigen</button>
-    </div></div>`;
-    return html;
-  }
+function stepsHtml(card, stepsShown) {
+  const steps = (card.schritte || []).slice(0, stepsShown);
+  return `<ol class="steps">${steps.map((s) => `<li><div class="step-text">${fmt(s.t)}</div>${s.w ? `<div class="step-why">${fmt(s.w)}</div>` : ''}</li>`).join('')}</ol>`;
+}
+
+function resultHtml(card) {
+  return `<div class="result"><span class="result-label">Ergebnis</span>${fmt(card.ergebnis)}</div>`;
+}
+
+function originHtml(card) {
+  return card.herkunft ? `<p class="origin origin-${card.herkunft}">${esc(HERKUNFT_LABEL[card.herkunft])}</p>` : '';
+}
+
+/** Alles, was nach dem letzten Schritt kommt: Skizze, Ergebnis, Fehler, Rezept, Herkunft. */
+function solutionEndHtml(card, withResult = true) {
+  let html = '';
   if (card.plotLoesung) html += plotSVG(card.plotLoesung);
-  html += `<div class="result"><span class="result-label">Ergebnis</span>${fmt(card.ergebnis)}</div>`;
+  if (withResult) html += resultHtml(card);
   if (card.fehler?.length) {
     html += `<div class="pitfalls"><h3>Typische Fehler</h3><ul>${card.fehler.map((f) => `<li>${fmt(f)}</li>`).join('')}</ul></div>`;
   }
@@ -112,9 +124,25 @@ function solutionHtml(card, stepsShown) {
     html += `<details class="recipe"><summary>Rezept für diesen Aufgabentyp</summary>
       <p class="recipe-q">${fmt(rezept.frage)}</p>${fmt(rezept.antwort)}</details>`;
   }
-  if (card.herkunft) html += `<p class="origin origin-${card.herkunft}">${esc(HERKUNFT_LABEL[card.herkunft])}</p>`;
-  html += '</div>';
-  return html;
+  return html + originHtml(card);
+}
+
+function tipsHtml(card, shown) {
+  const tips = (card.tipps || []).slice(0, shown);
+  if (!tips.length) return '';
+  return `<div class="tips">${tips.map((t, i) => `<div class="tip"><span class="tip-label">Tipp ${i + 1}</span>${fmt(t)}</div>`).join('')}</div>`;
+}
+
+function solutionHtml(card, stepsShown) {
+  const total = (card.schritte || []).length;
+  let html = `<div class="solution"><h3>Lösungsweg</h3>${stepsHtml(card, stepsShown)}`;
+  if (stepsShown < total) {
+    return `${html}<div class="step-actions">
+      <button class="btn" data-action="step">Nächster Schritt (${stepsShown + 1}/${total})</button>
+      <button class="btn btn-quiet" data-action="steps-all">Alle zeigen</button>
+    </div></div>`;
+  }
+  return `${html}${solutionEndHtml(card)}</div>`;
 }
 
 /** ui = { revealed, tips, steps, picked, order }; in der Inhaltsübersicht ist alles aufgedeckt. */
@@ -157,18 +185,11 @@ function cardBody(card, ui, browse = false) {
   }
 
   // Aufgabe
-  const tips = card.tipps || [];
-  const tipsShown = browse ? tips.length : ui.tips;
+  const tipsShown = browse ? Infinity : ui.tips;
   if (!browse && !ui.revealed && tipsShown === 0) {
     html += '<p class="hint-paper">Rechne die Aufgabe zuerst selbst auf Papier. Wenn du hängst, hol dir einen Tipp.</p>';
   }
-  if (tipsShown > 0) {
-    html += '<div class="tips">';
-    tips.slice(0, tipsShown).forEach((t, i) => {
-      html += `<div class="tip"><span class="tip-label">Tipp ${i + 1}</span>${fmt(t)}</div>`;
-    });
-    html += '</div>';
-  }
+  html += tipsHtml(card, tipsShown);
   if (ui.revealed || browse) html += solutionHtml(card, browse ? Infinity : ui.steps);
   return html;
 }
@@ -347,6 +368,7 @@ function renderHome() {
       ${examChip()}
     </header>
     <div class="panel today">${today}</div>
+    ${prepTeaser()}
 
     <h2>Fortschritt</h2>
     <div class="legend">
@@ -417,13 +439,129 @@ function renderUnit(id) {
 }
 
 // ---------------------------------------------------------------------
+//  Übung: Lösungswege zum Aufdecken während der Übung
+// ---------------------------------------------------------------------
+
+const prepUi = new Map(); // card_id -> { tips, steps, result, answer }
+
+function prepState(id) {
+  if (!prepUi.has(id)) prepUi.set(id, { tips: 0, steps: 0, result: false, answer: false });
+  return prepUi.get(id);
+}
+
+function prepButton(action, id, label, cls = '') {
+  return `<button class="btn ${cls}" data-action="${action}" data-card="${id}">${label}</button>`;
+}
+
+function prepCardHtml(card) {
+  const ui = prepState(card.id);
+  const tag = card.herkunft ? `<span class="prep-tag prep-tag-${card.herkunft}">${HERKUNFT_KURZ[card.herkunft]}</span>` : '';
+  let html = `<article class="card prep-card card-${card.typ}" id="prep-${card.id}">
+    <header class="card-head"><span class="prep-nr">Aufgabe ${esc(card.nr || '')}</span>${tag}<span class="card-quelle">${esc(card.thema)}</span></header>
+    <div class="frage">${fmt(card.frage)}</div>`;
+  if (card.plot) html += plotSVG(card.plot);
+
+  if (card.typ === 'verstaendnis') {
+    if (ui.answer) {
+      html += `<div class="antwort"><p class="prep-answer">${fmt(card.optionen[card.richtig])}</p>${fmt(card.erklaerung)}</div>${originHtml(card)}`;
+      html += `<div class="prep-actions">${prepButton('prep-reset', card.id, 'Zuklappen', 'btn-quiet')}</div>`;
+    } else {
+      html += `<div class="prep-actions">${prepButton('prep-answer', card.id, 'Antwort zeigen', 'btn-primary')}</div>`;
+    }
+    return `${html}</article>`;
+  }
+
+  const tips = card.tipps || [];
+  const total = (card.schritte || []).length;
+  const done = ui.steps >= total;
+  html += tipsHtml(card, ui.tips);
+  if (ui.steps > 0) html += `<div class="solution"><h3>Lösungsweg</h3>${stepsHtml(card, ui.steps)}</div>`;
+  if (done) html += solutionEndHtml(card);
+  else if (ui.result) html += resultHtml(card);
+
+  const buttons = [];
+  if (!done) {
+    if (ui.tips < tips.length) buttons.push(prepButton('prep-tip', card.id, `Tipp ${ui.tips + 1}/${tips.length}`));
+    buttons.push(prepButton('prep-step', card.id, ui.steps === 0 ? 'Ersten Schritt zeigen' : `Nächster Schritt ${ui.steps + 1}/${total}`, 'btn-primary'));
+    if (!ui.result) buttons.push(prepButton('prep-result', card.id, 'Nur Ergebnis'));
+    buttons.push(prepButton('prep-all', card.id, 'Alles zeigen', 'btn-quiet'));
+  }
+  if (ui.tips || ui.steps || ui.result) buttons.push(prepButton('prep-reset', card.id, 'Zuklappen', 'btn-quiet'));
+  return `${html}<div class="prep-actions">${buttons.join('')}</div></article>`;
+}
+
+function rerenderPrepCard(id) {
+  const el = document.getElementById(`prep-${id}`);
+  const card = cardById.get(id);
+  if (!el || !card) return;
+  el.outerHTML = prepCardHtml(card);
+  typeset(document.getElementById(`prep-${id}`));
+}
+
+function prepDates(unit) {
+  const today = dateStr();
+  return (unit.besprechung || []).map((d) => (d === today ? `${shortDate(d)} (heute)` : shortDate(d))).join(' · ');
+}
+
+function renderPrep(id) {
+  const unit = unitById.get(id) || nextUebung(dateStr());
+  if (!unit) {
+    show(`<section><header class="page-head"><p class="eyebrow">${esc(COURSE_NAME)}</p><h1>Übung</h1>
+      <p class="muted">Noch keine Übungsaufgaben eingetragen.</p></header></section>`);
+    return;
+  }
+  const next = nextUebung(dateStr());
+  const chips = uebungen.map((u) => `<a class="chip chip-link ${u.id === unit.id ? 'is-current' : ''}" href="#/uebung/${u.id}"
+      ${u.id === unit.id ? 'aria-current="page"' : ''}>Blatt ${u.nummer}${next && u.id === next.id ? ' · als Nächstes' : ''}</a>`).join('');
+
+  const sections = ['besprechung', 'praesenz'].map((teil) => {
+    const tasks = unit.karten.filter((c) => c.teil === teil);
+    if (!tasks.length) {
+      return teil === 'praesenz'
+        ? `<h2>${TEIL_LABEL[teil]}</h2><p class="muted small">Für dieses Blatt sind noch keine Präsenzaufgaben eingetragen.</p>`
+        : '';
+    }
+    return `<h2>${TEIL_LABEL[teil]}</h2><div class="prep-list">${tasks.map(prepCardHtml).join('')}</div>`;
+  }).join('');
+
+  show(`<section class="prep">
+    <header class="page-head">
+      <p class="eyebrow">${esc(COURSE_NAME)}</p>
+      <h1>Übung</h1>
+      <p class="muted">Lösungswege für die Aufgaben aus der Übung. Rechne mit und deck nur so viel auf, wie du brauchst.</p>
+    </header>
+    <nav class="chip-row" aria-label="Übungsblatt wählen">${chips}</nav>
+    <div class="panel prep-head">
+      <p class="prep-title">Übungsblatt ${unit.nummer}: ${esc(unit.titel)}</p>
+      ${unit.besprechung?.length ? `<p class="muted small">Besprechung ${prepDates(unit)}</p>` : ''}
+      <a class="small" href="#/inhalte/${unit.id}">Alle Karten dieses Blatts</a>
+    </div>
+    ${sections}
+  </section>`);
+}
+
+function prepTeaser() {
+  const today = dateStr();
+  const unit = nextUebung(today);
+  if (!unit?.besprechung?.length) return '';
+  const date = unit.besprechung.find((d) => d >= today);
+  if (!date || daysBetween(today, date) > 7) return '';
+  const n = unit.karten.filter((c) => c.teil).length;
+  const when = date === today ? 'heute' : shortDate(date);
+  return `<a class="panel prep-teaser" href="#/uebung/${unit.id}">
+    <span><strong>Übung ${when}</strong><span class="muted"> · Blatt ${unit.nummer}, ${plural(n, 'Aufgabe', 'Aufgaben')} mit Lösungsweg</span></span>
+    <span class="prep-teaser-go" aria-hidden="true">›</span>
+  </a>`;
+}
+
+// ---------------------------------------------------------------------
 //  Formelblatt
 // ---------------------------------------------------------------------
 
 function renderSheet() {
   const chosen = sheetItems.filter((i) => store.sheetSelected(i)).length;
   const groups = weeks.flatMap((w) => w.einheiten).filter((u) => u.formelblatt?.length).map((u) => `
-    <section class="sheet-group">
+    <section class="sheet-group ${u.formelblatt.some((i) => store.sheetSelected(i)) ? 'has-on' : ''}">
       <h3>${u.kurz} <span>${esc(u.titel)}</span></h3>
       ${u.formelblatt.map((item) => `<label class="sheet-item ${store.sheetSelected(item) ? 'is-on' : ''}">
         <input type="checkbox" data-action="sheet-toggle" data-id="${item.id}" ${store.sheetSelected(item) ? 'checked' : ''}>
@@ -533,6 +671,7 @@ function route() {
   session = null;
   if (name === 'inhalte' && arg) renderUnit(arg);
   else if (name === 'inhalte') renderContents();
+  else if (name === 'uebung') renderPrep(arg);
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
   else renderHome();
@@ -574,6 +713,20 @@ const actions = {
     renderSession();
   },
   rate: (el) => rateCurrent(Number(el.dataset.r)),
+  'prep-tip': (el) => { prepState(el.dataset.card).tips += 1; rerenderPrepCard(el.dataset.card); },
+  'prep-step': (el) => { prepState(el.dataset.card).steps += 1; rerenderPrepCard(el.dataset.card); },
+  'prep-result': (el) => { prepState(el.dataset.card).result = true; rerenderPrepCard(el.dataset.card); },
+  'prep-all': (el) => {
+    const card = cardById.get(el.dataset.card);
+    Object.assign(prepState(card.id), { steps: card.schritte.length, result: true });
+    rerenderPrepCard(card.id);
+  },
+  'prep-answer': (el) => { prepState(el.dataset.card).answer = true; rerenderPrepCard(el.dataset.card); },
+  'prep-reset': (el) => {
+    prepUi.delete(el.dataset.card);
+    rerenderPrepCard(el.dataset.card);
+    document.getElementById(`prep-${el.dataset.card}`)?.scrollIntoView({ block: 'nearest' });
+  },
   print: () => window.print(),
   'sync-now': () => sync.syncNow(),
   'sign-out': () => sync.signOut(),

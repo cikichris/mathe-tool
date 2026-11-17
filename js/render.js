@@ -13,7 +13,9 @@ function inline(s) {
  */
 export function fmt(text) {
   if (!text) return '';
-  const blocks = String(text).trim().split(/\n{2,}/);
+  // Abgesetzte Formeln ($$...$$) dürfen über mehrere Zeilen gehen (z. B. Tabellen)
+  const src = String(text).trim().replace(/\$\$[\s\S]*?\$\$/g, (m) => m.replace(/\s*\n\s*/g, ' '));
+  const blocks = src.split(/\n{2,}/);
   return blocks.map((block) => {
     const lines = block.split('\n');
     const out = [];

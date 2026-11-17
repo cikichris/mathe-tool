@@ -122,3 +122,12 @@ test('Einstellungen und Formelblatt werden abgeglichen', () => {
   assert.equal(store.sheetSelected({ id: 'fb-z', standard: false }), false);
   assert.equal(store.hasUnsynced(), false);
 });
+
+test('nächste Übung: heute zählt mit, danach das letzte Blatt', async () => {
+  const { nextUebung, uebungen } = await import('../js/content.js');
+  assert.ok(uebungen.length >= 1);
+  assert.equal(nextUebung('2026-11-17').id, 'ue05');
+  assert.equal(nextUebung('2026-11-04').id, 'ue03');
+  assert.equal(nextUebung('2026-10-01').id, 'ue01');
+  assert.equal(nextUebung('2027-03-01').id, uebungen[uebungen.length - 1].id);
+});

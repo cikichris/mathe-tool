@@ -5,6 +5,7 @@ Lern-App für **Mathematik (RE), Wintersemester 26/27**. Vorlesungen und Übunge
 - **Heute:** Abfrage aus fälligen Wiederholungen und neuen Karten, Fortschritt pro Einheit, Schwachstellen.
 - **Inhalte:** alle Karten nach Woche, Vorlesung und Übung. Jede Einheit lässt sich frei üben.
 - **Aufgaben** mit gestuften Tipps, kommentiertem Lösungsweg, typischen Fehlern und dem Rezept für den Aufgabentyp.
+- **Übung:** Lösungswege zum Aufdecken für die Aufgaben, die in der Übung besprochen werden (und später die Präsenzaufgaben). Gedacht zum Mitrechnen in der Übung: Tipp, nächster Schritt, nur Ergebnis oder alles.
 - **Formelblatt:** Sammlung für das erlaubte A4-Blatt, mit Druckansicht.
 - **Einstellungen:** Klausurtermin, neue Karten pro Tag, Login.
 
@@ -12,12 +13,15 @@ Das Konzept steht in [KONZEPT.md](KONZEPT.md).
 
 ## Aktueller Inhalt
 
-| Woche | Einheit | Karten |
+| Woche | Vorlesungen | Übung |
 |---|---|---|
-| 1 | Vorlesung 1: Grundbegriffe und Funktionsbegriff | 14 |
-| 1 | Vorlesung 2: Affin-lineare Funktionen | 14 |
-| 1 | Übung 1: Terme, Gleichungen und Geraden | 18 |
-| 2 | Vorlesung 3: Polynomfunktionen, Symmetrie und Nullstellen | 25 |
+| 1 | 1 Grundbegriffe und Funktionsbegriff, 2 Affin-lineare Funktionen | 1 Terme, Gleichungen und Geraden |
+| 2 | 3 Polynomfunktionen, 4 Substitution, Polynomdivision, Linearfaktoren | 2 Nullstellen von Polynomfunktionen |
+| 3 | 5 Exponential- und Logarithmusfunktionen, 6 Exponentialgleichungen | 3 Logarithmen und Exponentialgleichungen |
+| 4 | 7 Logarithmengleichungen, 8 Selbststudium: Winkel und Dreiecke | 4 Logarithmen, Winkel und Dreiecke |
+| 5 | 9 Sinus, Cosinus, Tangens, 10 Allgemeine Winkelfunktionen | 5 Periodische Funktionen und Sinusgleichungen |
+
+Insgesamt 193 Karten, davon 94 Rechenaufgaben.
 
 Bei jeder Aufgabe steht, woher die Lösung stammt: aus der offiziellen Lösung, aus der Vorlesung oder von Claude (dann noch nicht mit einer Musterlösung abgeglichen).
 
@@ -54,7 +58,7 @@ Die Datei `supabase/schema.sql` kann beliebig oft ausgeführt werden. Vorhandene
 ## Neue Woche einpflegen
 
 1. Material ins private Repository `mathe-material` legen oder im Chat hochladen.
-2. Claude legt `content/vlXX.js` bzw. `content/ueXX.js` an und trägt die Datei in `content/index.js` ein.
+2. Claude legt `content/vlXX.js` bzw. `content/ueXX.js` an und trägt die Datei in `content/index.js` ein. Aufgaben, die in der Übung besprochen werden, bekommen `teil: 'besprechung'` (Präsenzaufgaben `teil: 'praesenz'`) und eine Nummer `nr`. Sie erscheinen dann unter „Übung“.
 3. Prüfen: `node tools/check-content.mjs`
 4. Pull Request nach `main` mergen. Kurz darauf ist die neue Woche online.
 

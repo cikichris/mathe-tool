@@ -5,6 +5,10 @@
 //    x: [-3, 3], y: [-1, 4],        sichtbarer Bereich
 //    u: 44,                          Pixel pro Einheit (optional)
 //    grid: 0.5,                      Abstand der Gitterlinien (optional, Standard 1)
+//    pi: true,                       x-Achse in Vielfachen von π/2 beschriften (Winkelfunktionen)
+//    piEvery: 2,                     dabei nur jede zweite Marke (also Vielfache von π)
+//    noAxes: true,                   ohne Gitter und Achsen (z. B. für Dreiecke)
+//    polygons: [[[0, 0], [4, 0], [4, 3]]],   geschlossene Linienzüge
 //    fns: [{ f: x => 2*x + 1, from, to }],
 //    segments: [{ from: [0, 1], to: [2, 1] }],   gestrichelte Hilfslinien
 //    points: [[0, 1]],
@@ -14,6 +18,14 @@
 // =====================================================================
 
 let counter = 0;
+
+/** Beschriftung für k·π/2, z. B. 1 -> "π/2", 2 -> "π", -3 -> "−3π/2". */
+function piLabel(k) {
+  const sign = k < 0 ? '−' : '';
+  const a = Math.abs(k);
+  if (a % 2 === 0) return `${sign}${a === 2 ? '' : a / 2}π`;
+  return `${sign}${a === 1 ? '' : a}π/2`;
+}
 
 const num = (n) => String(Math.round(n * 100) / 100).replace('-', '−').replace('.', ',');
 
@@ -30,11 +42,16 @@ export function plotSVG(p) {
   const clip = `plot-clip-${++counter}`;
   const out = [];
 
-  // Gitter
+  // Gitter und Achsen
+  if (!p.noAxes) drawGrid();
+  function drawGrid() {
   const step = p.grid ?? 1;
   const isInt = (v) => Math.abs(v - Math.round(v)) < 1e-9;
-  for (let gx = Math.ceil(x0 / step) * step; gx <= x1 + 1e-9; gx += step) {
-    out.push(`<line class="plot-grid${isInt(gx) ? '' : ' minor'}" x1="${f2(sx(gx))}" y1="${f2(sy(y0))}" x2="${f2(sx(gx))}" y2="${f2(sy(y1))}"/>`);
+  const xStep = p.pi ? Math.PI / 4 : step;
+  const xMajor = (v) => (p.pi ? isInt(v / (Math.PI / 2)) : isInt(v));
+  for (let k = Math.ceil(x0 / xStep - 1e-9); k * xStep <= x1 + 1e-9; k += 1) {
+    const gx = k * xStep;
+    out.push(`<line class="plot-grid${xMajor(gx) ? '' : ' minor'}" x1="${f2(sx(gx))}" y1="${f2(sy(y0))}" x2="${f2(sx(gx))}" y2="${f2(sy(y1))}"/>`);
   }
   for (let gy = Math.ceil(y0 / step) * step; gy <= y1 + 1e-9; gy += step) {
     out.push(`<line class="plot-grid${isInt(gy) ? '' : ' minor'}" x1="${f2(sx(x0))}" y1="${f2(sy(gy))}" x2="${f2(sx(x1))}" y2="${f2(sy(gy))}"/>`);
@@ -52,16 +69,32 @@ export function plotSVG(p) {
   out.push(`<text class="plot-name" x="${f2(xe + 2)}" y="${f2(ax + 16)}" text-anchor="end">x</text>`);
   out.push(`<text class="plot-name" x="${f2(ay - 8)}" y="${f2(ye + 2)}" text-anchor="end">y</text>`);
 
-  // Achsenbeschriftung an den ganzen Zahlen
-  for (let tx = Math.ceil(x0); tx <= Math.floor(x1); tx += 1) {
-    if (tx === 0 || x1 - tx < 0.3) continue;
+  // Achsenbeschriftung an den ganzen Zahlen bzw. an Vielfachen von π/2
+  const xTicks = [];
+  if (p.pi) {
+    const h = Math.PI / 2;
+    const every = p.piEvery ?? 1; // nur jede n-te Marke beschriften (bei breiten Ausschnitten)
+    for (let k = Math.ceil(x0 / h - 1e-9); k * h <= x1 + 1e-9; k += 1) {
+      if (k % every === 0) xTicks.push([k * h, piLabel(k)]);
+    }
+  } else {
+    for (let tx = Math.ceil(x0); tx <= Math.floor(x1); tx += 1) xTicks.push([tx, num(tx)]);
+  }
+  for (const [tx, label] of xTicks) {
+    if (Math.abs(tx) < 1e-9 || x1 - tx < 0.3) continue;
     out.push(`<line class="plot-axis" x1="${f2(sx(tx))}" y1="${f2(ax - 4)}" x2="${f2(sx(tx))}" y2="${f2(ax + 4)}"/>`);
-    out.push(`<text class="plot-tick" x="${f2(sx(tx))}" y="${f2(ax + 17)}" text-anchor="middle">${num(tx)}</text>`);
+    out.push(`<text class="plot-tick" x="${f2(sx(tx))}" y="${f2(ax + 17)}" text-anchor="middle">${label}</text>`);
   }
   for (let ty = Math.ceil(y0); ty <= Math.floor(y1); ty += 1) {
     if (ty === 0 || y1 - ty < 0.3) continue;
     out.push(`<line class="plot-axis" x1="${f2(ay - 4)}" y1="${f2(sy(ty))}" x2="${f2(ay + 4)}" y2="${f2(sy(ty))}"/>`);
     out.push(`<text class="plot-tick" x="${f2(ay - 8)}" y="${f2(sy(ty) + 4)}" text-anchor="end">${num(ty)}</text>`);
+  }
+
+  }
+
+  for (const poly of p.polygons || []) {
+    out.push(`<polygon class="plot-shape" points="${poly.map(([px, py]) => `${f2(sx(px))},${f2(sy(py))}`).join(' ')}"/>`);
   }
 
   // Hilfslinien (z. B. Steigungsdreieck)
