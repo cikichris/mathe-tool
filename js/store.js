@@ -32,6 +32,7 @@ function blank() {
     badges: { got: {}, cnt: {}, upd: 0 }, // Meilensteine: id -> Datum; cnt: Zähler (z. B. ohneTipp)
     badgesDirty: false,
     missionPick: { d: '', card: '' },    // Aufgabe des Tages (nur auf diesem Gerät)
+    owner: '',                           // Konto, zu dem dieser Lernstand gehört ('' = ohne Login gelernt)
   };
 }
 
@@ -234,8 +235,27 @@ export function recordDrill(id, correct, today = dateStr()) {
 }
 
 export function resetAll() {
+  const { owner } = state;
   state = blank();
+  state.owner = owner;
   save();
+}
+
+export const owner = () => state.owner || '';
+
+/**
+ * Beim Anmelden: Gehört der Lernstand in diesem Browser zu einem anderen
+ * Konto, wird er verworfen (er liegt ja in dessen Datenbank). Wurde ohne
+ * Login gelernt, wird der Stand in das Konto übernommen.
+ * Gibt true zurück, wenn verworfen wurde.
+ */
+export function adoptOwner(id) {
+  if (state.owner === id) return false;
+  const foreign = Boolean(state.owner);
+  if (foreign) state = blank();
+  state.owner = id;
+  save();
+  return foreign;
 }
 
 /** Wie viele neue Karten wurden heute schon begonnen? */
