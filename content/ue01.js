@@ -404,6 +404,82 @@ Wie hoch sind die Fixkosten, und wie hoch sind die variablen Herstellungskosten 
         r`Den Antwortsatz mit Einheiten weglassen.`,
       ],
     },
+
+    // ---------------- Klausurregeln (aus Präsenzübung 01) ----------------
+    {
+      id: 'ue01-klausur-regeln',
+      typ: 'definition',
+      thema: 'Klausur',
+      quelle: 'Präsenzübung 01, Folien 3 bis 5 (Ausschnitt aus dem Klausurdeckblatt)',
+      frage: r`Welche Regeln gelten in der Klausur für Lösungswege und Ergebnisse?`,
+      antwort: r`- Alle Lösungswege **in Einzelschritten nachvollziehbar** aufschreiben.
+- Ergebnisse ohne nachvollziehbare Rechnung oder Begründung geben **0 Punkte**.
+- Ergebnisse, wenn nicht anders verlangt, **exakt und möglichst einfach** angeben: $10\pi$ statt $31{,}4$, $\frac{1}{3}$ statt $0{,}33$, $e^2$ statt $7{,}39$, $3 + \ln 2$ statt $3{,}693$, $\sqrt{2}$ statt $1{,}414$.
+- Soll gerundet werden: Rundungsregeln beachten und **nicht mit gerundeten Zwischenergebnissen** weiterrechnen (Speicher des Taschenrechners nutzen).`,
+      merke: r`Auch eine Dezimalzahl mit allen Stellen des Taschenrechners ist bei irrationalen Zahlen nicht exakt.`,
+    },
+    {
+      id: 'ue01-klausur-exakt-mc',
+      typ: 'verstaendnis',
+      thema: 'Klausur',
+      quelle: 'Präsenzübung 01, Folie 3',
+      herkunft: 'vorlesung',
+      frage: r`Als Ergebnis kommt $x = \dfrac{\ln(2)}{3}$ heraus. Wie gibst du es in der Klausur an, wenn nichts zum Runden gesagt ist?`,
+      optionen: [r`$x = \dfrac{\ln(2)}{3}$`, r`$x \approx 0{,}23$`, r`$x = 0{,}2310490602$`],
+      optionenFest: true,
+      richtig: 0,
+      erklaerung: r`Ohne Rundungsvorgabe immer exakt. Auch die lange Dezimalzahl ist nicht exakt, weil $\ln(2)$ irrational ist.`,
+    },
+
+    // ---------------- Präsenzübung 01 ----------------
+    {
+      id: 'ue01-p1',
+      typ: 'aufgabe',
+      teil: 'praesenz',
+      nr: 'P1',
+      thema: 'Geraden',
+      quelle: 'Präsenzübung 01, Aufgabe 1',
+      herkunft: 'claude',
+      rezept: 'vl02-anwendung-rezept',
+      frage: r`Lassen sich die Zusammenhänge durch eine affin-lineare Funktion beschreiben? Falls ja, gib sie an.
+1) In einen anfangs leeren Pool werden pro Minute 20 Liter gepumpt. $f(t)$: Wasser nach $t$ Minuten.
+2) 1 Million Euro werden zu 3,65 % Zinsen angelegt. $g(t)$: Kontostand nach $t$ Jahren.
+3) Eine Maschine kostet 10 000 €, jeder verkaufte Lebkuchen bringt 0,58 € Gewinn. $h(x)$: Gesamtgewinn bzw. -verlust bei $x$ Lebkuchen.`,
+      tipps: [
+        r`Affin-linear heißt: pro Schritt kommt immer **derselbe Betrag** dazu ($m$), plus ein fester Startwert ($b$).`,
+        r`Bei Zinsen kommt jedes Jahr derselbe **Prozentsatz** dazu, nicht derselbe Betrag.`,
+      ],
+      schritte: [
+        { t: r`1) Ja: $f: [0;\infty) \to \mathbb{R},\ f(t) = 20t$ (Liter)`, w: r`Pro Minute immer 20 Liter mehr ($m = 20$), Start bei 0 ($b = 0$).`, q: r`VL 2, Folie 3: $f(x) = mx + b$.` },
+        { t: r`2) Nein: $g(t) = 1\,000\,000 \cdot 1{,}0365^t$ ist eine Exponentialfunktion.`, w: r`Die Zinsen werden jedes Jahr auf den neuen, größeren Kontostand berechnet. Der Zuwachs pro Jahr wird also größer.`, q: r`VL 5, Folie 7: $K(t) = K_0 \left(1 + \frac{p}{100}\right)^t$.` },
+        { t: r`3) Ja: $h: \mathbb{N}_0 \to \mathbb{R},\ h(x) = 0{,}58x - 10\,000$ (Euro)`, w: r`Startwert $-10\,000$ € (Maschine), pro Lebkuchen $+0{,}58$ €. $x$ ist eine Anzahl, deshalb $\mathbb{N}_0$.` },
+      ],
+      ergebnis: r`1) ja, $f(t) = 20t$ $\quad$ 2) nein (exponentiell) $\quad$ 3) ja, $h(x) = 0{,}58x - 10\,000$`,
+    },
+    {
+      id: 'ue01-p2',
+      typ: 'aufgabe',
+      teil: 'praesenz',
+      nr: 'P2',
+      thema: 'Geraden',
+      quelle: 'Präsenzübung 01, Aufgabe 2',
+      herkunft: 'claude',
+      rezept: 'vl02-schnittpunkt-rezept',
+      frage: r`Mainova: 157,35 € Grundgebühr pro Jahr und 9,08 ct/kWh. EWE: 79,95 € Grundgebühr und 10,77 ct/kWh. Untersuche rechnerisch, bei welchem Gasverbrauch welcher Tarif günstiger ist.`,
+      tipps: [
+        r`Stelle für jeden Tarif eine Funktion auf ($x$ in kWh, Preis in €). Cent in Euro umrechnen!`,
+        r`Gleichsetzen: Bei welchem Verbrauch kosten beide gleich viel?`,
+        r`EWE ist am Anfang billiger (kleinere Grundgebühr), aber steiler.`,
+      ],
+      schritte: [
+        { t: r`$f(x) = 0{,}0908x + 157{,}35$ (Mainova), $\ g(x) = 0{,}1077x + 79{,}95$ (EWE), $x$ in kWh`, q: r`VL 2, Folie 7: Grundgebühr $= b$, Preis pro kWh $= m$.` },
+        { t: r`$f(x) = g(x) \Leftrightarrow 157{,}35 - 79{,}95 = 0{,}1077x - 0{,}0908x \Leftrightarrow 77{,}4 = 0{,}0169x$`, q: r`VL 2, Folie 9: Schnittpunkt über $f(x) = g(x)$.` },
+        { t: r`$\Leftrightarrow x = \dfrac{77{,}4}{0{,}0169} = \dfrac{774\,000}{169} \approx 4579{,}88$ kWh`, w: r`Exakt als Bruch, gerundet nur zur Deutung.` },
+        { t: r`Unter etwa 4580 kWh ist EWE günstiger, darüber Mainova. Bei genau $\frac{774\,000}{169}$ kWh kosten beide gleich viel.`, w: r`Probe mit $x = 0$: EWE 79,95 € < Mainova 157,35 €. Wegen der größeren Steigung holt EWE danach auf und überholt.` },
+      ],
+      ergebnis: r`Gleich teuer bei $x = \frac{774\,000}{169} \approx 4579{,}88$ kWh; darunter EWE, darüber Mainova günstiger`,
+      fehler: [r`Mit 9,08 und 10,77 statt 0,0908 und 0,1077 rechnen.`, r`Nur den Schnittpunkt angeben, ohne zu sagen, welcher Tarif wann günstiger ist.`],
+    },
   ],
 
   formelblatt: [

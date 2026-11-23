@@ -5,7 +5,8 @@ Lern-App für **Mathematik (RE), Wintersemester 26/27**. Vorlesungen und Übunge
 - **Heute:** Lernserie mit Tagesziel, Abfrage aus fälligen Wiederholungen und neuen Karten, Fortschritt pro Einheit, Schwachstellen, Schnelltraining „Methode erkennen“.
 - **Inhalte:** alle Karten nach Woche, Vorlesung und Übung. Jede Einheit lässt sich frei üben.
 - **Aufgaben** mit gestuften Tipps, kommentiertem Lösungsweg, typischen Fehlern und dem Rezept für den Aufgabentyp.
-- **Übung:** Lösungswege zum Aufdecken für die Aufgaben, die in der Übung besprochen werden (und später die Präsenzaufgaben). Gedacht zum Mitrechnen in der Übung: Tipp, nächster Schritt, nur Ergebnis oder alles.
+- **Übung:** Besprechungs- und Präsenzaufgaben mit Lösungsweg zum Aufdecken. Vorher markierst du pro Aufgabe „Selbst gelöst“, „Mit Hilfe“ oder „Offen“ und notierst Fragen. In der Übung zeigt der Live-Modus eine Aufgabe nach der anderen mit großen Knöpfen, und der Bildschirm bleibt an.
+- **Eigene Lösung prüfen:** bei jeder Rechenaufgabe. Du rechnest auf Papier, fotografierst deine Lösung und gehst den Lösungsweg Schritt für Schritt durch: „Wie hier“, „Anders, aber richtig“ oder „Fehlt / falsch“. Danach gibt es eine Auswertung, einen Vorschlag für den Wiederholungsplan und die Möglichkeit, die Fotos für eine genauere Prüfung an Claude zu teilen. Die Fotos bleiben auf dem Gerät, die Ergebnisse werden mitgespeichert.
 - **Formelblatt:** Sammlung für das erlaubte A4-Blatt, mit Druckansicht.
 - **Einstellungen:** Klausurtermin, neue Karten pro Tag, Login.
 
@@ -20,8 +21,9 @@ Das Konzept steht in [KONZEPT.md](KONZEPT.md).
 | 3 | 5 Exponential- und Logarithmusfunktionen, 6 Exponentialgleichungen | 3 Logarithmen und Exponentialgleichungen |
 | 4 | 7 Logarithmengleichungen, 8 Selbststudium: Winkel und Dreiecke | 4 Logarithmen, Winkel und Dreiecke |
 | 5 | 9 Sinus, Cosinus, Tangens, 10 Allgemeine Winkelfunktionen | 5 Periodische Funktionen und Sinusgleichungen |
+| 6 | 11 Cosinus-/Tangensgleichungen und Ableitungsbegriff, 12 Ableitungsregeln | 6 Winkelfunktionen und erste Ableitungen |
 
-Insgesamt 193 Karten, davon 94 Rechenaufgaben.
+Insgesamt 254 Karten, davon 134 Rechenaufgaben, plus 80 Aufgaben im Schnelltraining „Methode erkennen“. Präsenzübungen 1 bis 5 sind bei den Übungsblättern eingetragen.
 
 Bei jeder Aufgabe steht, woher die Lösung stammt: aus der offiziellen Lösung, aus der Vorlesung oder von Claude (dann noch nicht mit einer Musterlösung abgeglichen).
 

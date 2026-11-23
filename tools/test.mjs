@@ -127,6 +127,7 @@ test('nächste Übung: heute zählt mit, danach das letzte Blatt', async () => {
   const { nextUebung, uebungen } = await import('../js/content.js');
   assert.ok(uebungen.length >= 1);
   assert.equal(nextUebung('2026-11-17').id, 'ue05');
+  assert.equal(nextUebung('2026-11-23').id, 'ue06');
   assert.equal(nextUebung('2026-11-04').id, 'ue03');
   assert.equal(nextUebung('2026-10-01').id, 'ue01');
   assert.equal(nextUebung('2027-03-01').id, uebungen[uebungen.length - 1].id);
@@ -179,4 +180,37 @@ test('Lernserie: Zählen, Abgleich und Übernahme aus dem Verlauf', () => {
   store.backfillActivity(['2026-11-20T10:00:00Z', '2026-11-20T11:00:00Z', '2026-11-21T09:00:00Z']);
   assert.equal(store.activityDays()['2026-11-20'], 2);
   assert.equal(store.activityBackfilled(), true);
+});
+
+test('Übungsvorbereitung: Status und Fragen werden gespeichert und abgeglichen', () => {
+  store.resetAll();
+  store.setPrepStatus('ue06-a6a', 'hilfe');
+  store.setPrepNote('ue06-a6a', 'Warum durch 4?');
+  assert.equal(store.prepStatus('ue06-a6a'), 'hilfe');
+  assert.equal(store.prepNote('ue06-a6a'), 'Warum durch 4?');
+  const box = store.outbox();
+  const row = box.userData.find((r) => r.key === 'prep');
+  assert.equal(row.value.status['ue06-a6a'], 'hilfe');
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  store.setPrepStatus('ue06-a6a', '');
+  store.setPrepNote('ue06-a6a', '   ');
+  assert.equal(store.prepStatus('ue06-a6a'), '');
+  assert.equal(store.prepNote('ue06-a6a'), '');
+  store.applyRemote({ userData: [{ key: 'prep', value: { status: { x: 'selbst' }, notes: {} }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
+  assert.equal(store.prepStatus('x'), 'selbst');
+});
+
+test('Eigene Lösung prüfen: Kontrollen werden gespeichert und abgeglichen', () => {
+  store.resetAll();
+  for (let i = 0; i < 12; i += 1) store.addCheck('ue06-a6a', { d: '2026-11-23', gleich: i, anders: 0, fehlt: 1, of: 5, result: 'falsch' });
+  assert.equal(store.checksFor('ue06-a6a').length, 10, 'nur die letzten 10 bleiben');
+  assert.equal(store.checksFor('ue06-a6a').at(-1).gleich, 11);
+  const box = store.outbox();
+  assert.equal(box.userData.find((r) => r.key === 'checks').value.list['ue06-a6a'].length, 10);
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  store.applyRemote({ userData: [{ key: 'checks', value: { list: { x: [{ d: '2026-11-22', result: 'richtig' }] } }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
+  assert.equal(store.checksFor('x')[0].result, 'richtig');
+  assert.deepEqual(store.checksFor('nichts'), []);
 });

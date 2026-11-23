@@ -12,6 +12,8 @@
 //       Nach der Übung: abgleich: { datum, status: 'bestaetigt' | 'abweichung' |
 //       'ergaenzt', text } an der Aufgabe eintragen (aus Fotos von Musterlösung
 //       und eigener Lösung, die im Chat geschickt werden).
+//       Rückmeldung zu einer eigenen Lösung (Foto im Chat geschickt):
+//       rueckmeldung: [{ datum: 'JJJJ-MM-TT', text }] an der Aufgabe.
 //    Neue Aufgabentypen auch im Schnelltraining ergänzen: content/methoden.js
 //    2. hier importieren und in die passende Woche eintragen
 //    3. node tools/check-content.mjs ausführen
@@ -29,11 +31,14 @@ import vl07 from './vl07.js';
 import vl08 from './vl08.js';
 import vl09 from './vl09.js';
 import vl10 from './vl10.js';
+import vl11 from './vl11.js';
+import vl12 from './vl12.js';
 import ue01 from './ue01.js';
 import ue02 from './ue02.js';
 import ue03 from './ue03.js';
 import ue04 from './ue04.js';
 import ue05 from './ue05.js';
+import ue06 from './ue06.js';
 
 export const WOCHEN = [
   { nr: 1, titel: 'Grundbegriffe, Funktionen und Geraden', einheiten: [vl01, vl02, ue01] },
@@ -41,4 +46,5 @@ export const WOCHEN = [
   { nr: 3, titel: 'Exponential- und Logarithmusfunktionen', einheiten: [vl05, vl06, ue03] },
   { nr: 4, titel: 'Logarithmengleichungen, Winkel und Dreiecke', einheiten: [vl07, vl08, ue04] },
   { nr: 5, titel: 'Winkelfunktionen', einheiten: [vl09, vl10, ue05] },
+  { nr: 6, titel: 'Cosinus-/Tangensgleichungen und Ableitungen', einheiten: [vl11, vl12, ue06] },
 ];
