@@ -310,3 +310,35 @@ test('Konto wechseln: fremder Lernstand wird verworfen, Lernen ohne Login übern
   assert.equal(store.owner(), 'nutzer-2');
   assert.equal(store.hasUnsynced(), false);
 });
+
+test('Skyline: Punkte sammeln, Startkapital, Extras und Abgleich', async () => {
+  store.resetAll();
+  store.pointsInit({ polynome: 12, _: 3 });
+  store.pointsInit({ polynome: 99 }); // nur einmal
+  store.earn('polynome', 3, '2026-11-23');
+  store.earn(null, 1, '2026-11-23');
+  store.earn('ableitungen', 5, '2026-11-23');
+  assert.deepEqual(store.pointsByKey(), { polynome: 15, _: 4, ableitungen: 5 });
+  store.buy('mond', '2026-11-23');
+  store.buy('mond', '2026-11-24');
+  assert.equal(store.shop().mond, '2026-11-23');
+  const box = store.outbox();
+  assert.equal(box.userData.find((r) => r.key === 'points').value.log['2026-11-23'].polynome, 3);
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  // Anderes Gerät hat am selben Tag mehr Polynom-Punkte und ein anderes Extra
+  store.applyRemote({ userData: [{ key: 'points', value: { log: { '2026-11-23': { polynome: 7 }, '2026-11-22': { explog: 4 } }, shop: { kran: '2026-11-22' }, init: true }, updated_at: new Date().toISOString() }] });
+  assert.deepEqual(store.pointsByKey(), { polynome: 19, _: 4, ableitungen: 5, explog: 4 });
+  assert.ok(store.shop().kran && store.shop().mond);
+  assert.equal(store.hasUnsynced(), true);
+
+  const { skylineSVG, floorsFor, SHOP } = await import('../js/skyline.js');
+  assert.equal(floorsFor(14), 2);
+  assert.equal(floorsFor(-3), 0);
+  const towers = Array.from({ length: 8 }, (_, i) => ({ id: `t${i}`, kurz: `T${i}`, floors: i * 7, ready: i / 8, reif: i === 7 }));
+  for (const opts of [{ night: true }, { night: false, mini: true }]) {
+    const svg = skylineSVG(towers, new Set(SHOP.map((x) => x.id)), opts);
+    assert.ok(svg.startsWith('<svg') && !/NaN|undefined/.test(svg), 'SVG ohne NaN');
+  }
+  assert.equal(new Set(SHOP.map((x) => x.id)).size, SHOP.length);
+});

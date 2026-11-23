@@ -142,7 +142,9 @@ Formelblatt mit Druckansicht, Einstellungen, Login und Abgleich mit Supabase.
 Dranbleiben: Tagesmission (8 Karten, Aufgabe des Tages, 5× Methode erkennen),
 Lernserie mit Wochenziel und einem Joker pro Woche, Klausurreife gesamt und
 pro Klausurthema (content/themen.js), Fortschrittsseite mit Aktivität der
-letzten 12 Wochen und Meilensteinen.
+letzten 12 Wochen und Meilensteinen. Skyline: Lernpunkte lassen pro
+Klausurthema ein Hochhaus wachsen, Fenster leuchten je nach Klausurreife,
+Extras kosten Punkte (js/skyline.js).
 
 Vorgemerkt:
 - **Klausur-Simulation:** gemischte Aufgaben mit Zeitlimit, nur mit dem
