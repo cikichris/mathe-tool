@@ -403,6 +403,28 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; bo
 .plot-point { fill: var(--c-aufgabe); stroke: var(--surface); stroke-width: 2; }
 .plot-label { fill: var(--c-aufgabe); font-size: 15px; font-weight: 700; font-family: inherit; }
 
+/* ---------- Lernserie ---------- */
+
+.streak { margin-bottom: 0.8rem; }
+.streak > * + * { margin-top: 0.7rem; }
+.streak-top { display: flex; align-items: center; gap: 0.75rem; }
+.streak-flame { font-size: 1.9rem; line-height: 1; width: 2.2rem; text-align: center; color: var(--muted); }
+.streak-text { flex: 1; min-width: 0; display: grid; }
+.streak-text strong { font-size: 1.1rem; }
+.streak-best { font-size: 0.78rem; font-weight: 700; color: var(--muted); background: var(--surface-2); padding: 0.2rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+.streak-bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.streak-bar span { display: block; height: 100%; background: var(--hard); border-radius: 99px; transition: width 0.3s; }
+.streak.is-done .streak-bar span { background: var(--good); }
+.streak-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.streak-dots { display: flex; gap: 4px; flex-wrap: nowrap; }
+.streak-dot { width: 12px; height: 12px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); }
+.streak-dot.is-some { background: color-mix(in srgb, var(--hard) 35%, var(--surface)); border-color: transparent; }
+.streak-dot.is-done { background: var(--good); border-color: transparent; }
+.streak-dot.is-today { outline: 2px solid var(--ink); outline-offset: 1px; }
+@media (max-width: 360px) { .streak-dot { width: 9px; height: 9px; } }
+.streak-note { margin: 0.6rem 0 0.4rem; font-weight: 600; color: var(--muted); }
+.streak-note.is-done { color: var(--good); }
+
 /* ---------- Abfrage ---------- */
 
 .session-bar { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; }

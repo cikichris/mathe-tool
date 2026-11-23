@@ -144,3 +144,39 @@ test('Schnelltraining: Statistik wird gespeichert und abgeglichen', () => {
   store.applyRemote({ userData: [{ key: 'drill', value: { stats: { 'm-e01': [3, 0, '2026-11-18'] } }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
   assert.deepEqual(store.drillStats(), { 'm-e01': [3, 0, '2026-11-18'] });
 });
+
+test('Lernserie: Zählung, laufende Serie, Rekord', async () => {
+  const { computeStreak, lastDays } = await import('../js/streak.js');
+  const days = { '2026-11-18': 12, '2026-11-19': 10, '2026-11-20': 3, '2026-11-21': 15, '2026-11-22': 11 };
+  let st = computeStreak(days, '2026-11-23', 10);
+  assert.equal(st.current, 2);          // 21. und 22.; heute noch offen
+  assert.equal(st.todayDone, false);
+  assert.equal(st.best, 2);
+  st = computeStreak({ ...days, '2026-11-23': 10 }, '2026-11-23', 10);
+  assert.equal(st.current, 3);
+  assert.equal(st.todayDone, true);
+  st = computeStreak(days, '2026-11-24', 10); // gestern (23.) nichts: Serie gerissen
+  assert.equal(st.current, 0);
+  assert.equal(computeStreak(days, '2026-11-23', 3).best, 5);
+  const ld = lastDays(days, '2026-11-23', 3, 10);
+  assert.deepEqual(ld.map((x) => x.done), [true, true, false]);
+});
+
+test('Lernserie: Zählen, Abgleich und Übernahme aus dem Verlauf', () => {
+  store.resetAll();
+  store.rate('a', GOOD, 'heute', '2026-11-23');
+  store.recordDrill('m-p01', true, '2026-11-23');
+  assert.equal(store.activityDays()['2026-11-23'], 2);
+  store.applyRemote({ userData: [{ key: 'activity', value: { days: { '2026-11-22': 12, '2026-11-23': 1 }, backfilled: true }, updated_at: new Date().toISOString() }] });
+  assert.equal(store.activityDays()['2026-11-22'], 12);
+  assert.equal(store.activityDays()['2026-11-23'], 2);
+  assert.equal(store.activityBackfilled(), true);
+  const box = store.outbox();
+  assert.equal(box.userData.find((r) => r.key === 'activity').value.days['2026-11-23'], 2);
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  store.resetAll();
+  store.backfillActivity(['2026-11-20T10:00:00Z', '2026-11-20T11:00:00Z', '2026-11-21T09:00:00Z']);
+  assert.equal(store.activityDays()['2026-11-20'], 2);
+  assert.equal(store.activityBackfilled(), true);
+});
