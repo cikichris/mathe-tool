@@ -7,6 +7,7 @@
 //    #/inhalte          alle Wochen und Einheiten
 //    #/inhalte/vl01     eine Einheit mit allen Karten
 //    #/fortschritt      Klausurreife, Lernserie, Meilensteine
+//    #/skyline          Lernpunkte und Skyline
 //    #/formelblatt      Formelblatt-Builder
 //    #/einstellungen    Klausurtermin, Login, Daten
 // =====================================================================
@@ -29,6 +30,9 @@ import {
 } from './streak.js';
 import { readiness, readinessLabel, milestones, cardReadiness, THEMA_REIF } from './progress.js';
 import * as photos from './photos.js';
+import {
+  skylineSVG, floorsFor, SHOP, REGELN, PUNKTE_PRO_STOCK, PUNKTE_MISSION, PUNKTE_MEILENSTEIN,
+} from './skyline.js';
 
 const view = document.getElementById('view');
 let session = null;
@@ -248,6 +252,7 @@ function startSession(list, mode, title) {
     title,
     ui: freshUi(list[0]),
     finished: false,
+    points: 0,
   };
   if (location.hash === '#/lernen') route();
   else location.hash = '#/lernen';
@@ -293,12 +298,13 @@ function renderSession() {
     const plan = todayPlan();
     const more = plan.due.length + plan.fresh.length;
     if (session.mission) {
-      show(missionSummary(`${plural(session.done, 'Karte', 'Karten')} bearbeitet${session.again ? `, ${session.again}-mal „Nochmal“` : ''}.`));
+      show(missionSummary(`${plural(session.done, 'Karte', 'Karten')} bearbeitet${session.again ? `, ${session.again}-mal „Nochmal“` : ''}.`, session.points));
       return;
     }
     show(`<section class="summary">
       <h1>Geschafft</h1>
       <p class="summary-main">${plural(session.done, 'Karte', 'Karten')} bearbeitet${session.again ? `, ${session.again}-mal „Nochmal“` : ''}.</p>
+      ${pointsNote(session.points)}
       ${streakNote()}
       <p class="muted">Jede Karte kommt automatisch wieder, bevor du sie vergisst.</p>
       <div class="action-row">
@@ -330,10 +336,14 @@ function rateCurrent(rating) {
   const card = cardById.get(id);
   store.rate(id, rating, session.mode);
   store.countPart('k');
+  let pts = 1;
   if (card.typ === 'aufgabe') {
     store.countPart('a');
-    if (rating >= GOOD && session.ui.tips === 0) store.bump('ohneTipp');
+    if (rating !== AGAIN) pts = 3;
+    if (rating >= GOOD && session.ui.tips === 0) { store.bump('ohneTipp'); pts += 2; }
   }
+  store.earn(card.klausurthema, pts);
+  session.points += pts;
   if (rating === AGAIN) {
     session.again += 1;
     session.queue.push(id);
@@ -470,12 +480,13 @@ function missionPanel(ms = missionState()) {
 }
 
 /** Zusammenfassung am Ende eines Missionsteils. */
-function missionSummary(line) {
+function missionSummary(line, pts = 0) {
   const ms = missionState();
   const next = ms.steps.find((x) => !x.done);
   return `<section class="summary">
     ${ms.done ? '<div class="party" aria-hidden="true">🎉</div><h1>Tagesmission geschafft!</h1>' : '<h1>Teil geschafft</h1>'}
     <p class="summary-main">${line}</p>
+    ${pointsNote(pts + (ms.done && !ms.marked ? PUNKTE_MISSION : 0))}
     ${streakNote()}
     ${missionPanel(ms)}
     <div class="action-row">
@@ -573,6 +584,7 @@ function watchProgress() {
   clearTimeout(watchTimer);
   watchTimer = setTimeout(() => {
     const today = dateStr();
+    if (!store.pointsInitDone()) store.pointsInit(startCapital());
     const ms = missionState(today);
     if (ms.done && !ms.marked) {
       store.markMission(today);
@@ -580,6 +592,7 @@ function watchProgress() {
     }
     const list = milestones(milestoneContext());
     const fresh = store.award(list.filter((m) => m.done).map((m) => m.id), today);
+    if (fresh.length && watchReady && fresh.length <= 3) toast(`⭐ +${fresh.length * PUNKTE_MEILENSTEIN} Punkte für deine <a href="#/skyline">Skyline</a>`);
     if (fresh.length && watchReady) {
       const byId = new Map(list.map((m) => [m.id, m]));
       if (fresh.length > 3) toast(`🏅 <strong>${fresh.length} Meilensteine freigeschaltet</strong> <a href="#/fortschritt">ansehen</a>`);
@@ -666,6 +679,7 @@ function renderHome() {
     ${missionPanel()}
     ${prepTeaser()}
     ${readinessTeaser()}
+    ${skylineTeaser()}
     <div class="panel today">${today}</div>
     ${drillTeaser()}
 
@@ -676,6 +690,140 @@ function renderHome() {
       </div>` : ''}
     ${sync.status().ready && !sync.status().signedIn ? '<p class="muted small home-account"><a href="#/einstellungen">Konto erstellen oder anmelden</a>, damit dein Lernstand gesichert und auf allen Geräten gleich ist.</p>' : ''}
     ${store.isMemoryOnly() ? '<p class="warn">Dieser Browser erlaubt kein Speichern (privater Modus?). Dein Lernstand geht beim Schließen verloren.</p>' : ''}
+  </section>`);
+}
+
+// ---------------------------------------------------------------------
+//  Skyline: Lernpunkte
+// ---------------------------------------------------------------------
+
+/** Einmaliges Startkapital für alles, was vor Einführung der Punkte gelernt wurde. */
+function startCapital() {
+  const start = {};
+  for (const card of cards) {
+    const st = stateOf(card.id);
+    if (isNew(st)) continue;
+    let n = card.typ === 'aufgabe' ? 3 : 1;
+    if (stage(st) === 'sicher') n += 2;
+    const key = card.klausurthema || '_';
+    start[key] = (start[key] || 0) + n;
+  }
+  const drillRight = Object.values(store.drillStats()).reduce((sum, [r = 0]) => sum + r, 0);
+  if (drillRight) start._ = (start._ || 0) + drillRight;
+  return start;
+}
+
+function pointsSummary() {
+  const byKey = store.pointsByKey();
+  const learned = Object.values(byKey).reduce((a, b) => a + b, 0);
+  const missions = Object.keys(store.missionDays()).length;
+  const badges = Object.keys(store.badgesGot()).length;
+  const total = learned + missions * PUNKTE_MISSION + badges * PUNKTE_MEILENSTEIN;
+  const bought = store.shop();
+  const spent = SHOP.filter((x) => bought[x.id]).reduce((a, x) => a + x.preis, 0);
+  return { byKey, total, spent, balance: Math.max(0, total - spent), missions, badges };
+}
+
+function pointsNote(n) {
+  return n > 0 ? `<p class="points-note">⭐ +${n} Punkte für deine <a href="#/skyline">Skyline</a></p>` : '';
+}
+
+function isNight() {
+  const h = new Date().getHours();
+  return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches || h < 7 || h >= 19;
+}
+
+function skylineTowers() {
+  const today = dateStr();
+  const byKey = store.pointsByKey();
+  return themen.map((t) => {
+    const ready = readiness(t.karten, stateOf, today);
+    const pts = byKey[t.id] || 0;
+    return { id: t.id, kurz: t.kurz, titel: t.titel, points: pts, floors: floorsFor(pts), ready, reif: ready >= THEMA_REIF };
+  });
+}
+
+function skylineLabels(towers) {
+  return `<div class="sky-labels" aria-hidden="true">${towers.map((t) => `<span>${esc(t.kurz)}</span>`).join('')}</div>`;
+}
+
+function skylineTeaser() {
+  const pts = pointsSummary();
+  const towers = skylineTowers();
+  const floors = towers.reduce((a, t) => a + t.floors, 0);
+  return `<a class="panel sky-teaser" href="#/skyline">
+    <div class="sky-teaser-art">${skylineSVG(towers, new Set(Object.keys(store.shop())), { night: isNight(), mini: true, animate: false })}</div>
+    <span class="sky-teaser-text"><strong>Deine Skyline</strong><span class="muted small">${plural(floors, 'Stockwerk', 'Stockwerke')} · ${pts.balance} Punkte zum Bauen</span></span>
+    <span class="prep-teaser-go" aria-hidden="true">›</span>
+  </a>`;
+}
+
+function renderSkyline() {
+  const pts = pointsSummary();
+  const towers = skylineTowers();
+  const bought = store.shop();
+  const items = new Set(Object.keys(bought));
+  const floors = towers.reduce((a, t) => a + t.floors, 0);
+  const lit = towers.filter((t) => t.reif).length;
+
+  const rows = towers.map((t) => {
+    const next = PUNKTE_PRO_STOCK - (t.points % PUNKTE_PRO_STOCK);
+    return `<tr class="${t.reif ? 'is-ready' : ''}">
+      <th scope="row">${esc(t.titel)}</th>
+      <td>${t.floors}</td>
+      <td>${pct(t.ready)} %</td>
+      <td class="muted">noch ${next}</td>
+    </tr>`;
+  }).join('');
+
+  const shopHtml = SHOP.map((x) => {
+    const own = Boolean(bought[x.id]);
+    const blocked = x.braucht && !bought[x.braucht];
+    const afford = pts.balance >= x.preis;
+    const need = blocked ? `braucht ${esc(SHOP.find((y) => y.id === x.braucht).titel)}` : '';
+    return `<li class="shop-item ${own ? 'is-own' : ''}">
+      <span class="shop-icon" aria-hidden="true">${x.icon}</span>
+      <span class="shop-text"><strong>${esc(x.titel)}</strong><small>${esc(x.text)}</small></span>
+      ${own ? '<span class="shop-done">✓ gebaut</span>'
+        : `<button class="btn btn-small ${afford && !blocked ? 'btn-primary' : ''}" data-action="sky-buy" data-id="${x.id}" ${afford && !blocked ? '' : 'disabled'} title="${need}">⭐ ${x.preis}</button>`}
+      ${!own && need ? `<small class="shop-need">${need}</small>` : ''}
+    </li>`;
+  }).join('');
+
+  show(`<section class="sky-page">
+    <a class="back" href="#/fortschritt">Fortschritt</a>
+    <header class="page-head">
+      <p class="eyebrow">${esc(COURSE_NAME)}</p>
+      <h1>Deine Skyline</h1>
+      <p class="muted">Jedes Klausurthema ist ein Hochhaus. Was du lernst, lässt den Turm des Themas wachsen. Die Fenster leuchten, je klausurreifer das Thema ist. Vergisst du etwas, gehen dort Lichter aus.</p>
+    </header>
+    <div class="sky-scene">
+      ${skylineSVG(towers, items, { night: isNight() })}
+      ${skylineLabels(towers)}
+    </div>
+    <div class="stat-tiles four sky-stats">
+      <div><strong>${pts.balance}</strong><span>Punkte zum Bauen</span></div>
+      <div><strong>${pts.total}</strong><span>Punkte gesammelt</span></div>
+      <div><strong>${floors}</strong><span>Stockwerke</span></div>
+      <div><strong>${lit}<small> / ${towers.length}</small></strong><span>Türme klausurreif</span></div>
+    </div>
+
+    <h2>Bauen</h2>
+    <p class="muted small">Extras kosten Punkte. Deine Türme schrumpfen dadurch nicht: Sie zählen alles, was du je gesammelt hast.</p>
+    <ul class="shop">${shopHtml}</ul>
+
+    <h2>Die Türme</h2>
+    <div class="panel table-wrap">
+      <table class="sky-table">
+        <thead><tr><th scope="col">Thema</th><th scope="col">Stockwerke</th><th scope="col">Licht</th><th scope="col">nächstes Stockwerk</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="muted small explain">Ein Stockwerk je ${PUNKTE_PRO_STOCK} Punkte aus Karten des Themas. Licht = Klausurreife des Themas. Ab ${pct(THEMA_REIF)} % leuchtet oben ein Signal.</p>
+
+    <h2>So gibt es Punkte</h2>
+    <ul class="panel mini-list">${REGELN.map(([was, n]) => `<li class="rule-row"><span>${esc(was)}</span><strong>${esc(n)}</strong></li>`).join('')}</ul>
+    <p class="muted small explain">Für alles, was du vorher schon gelernt hast, gab es einmal ein Startkapital. Punkte aus Missionen, Meilensteinen und „Methode erkennen“ kann man nur verbauen, die Türme wachsen durch Karten und Aufgaben.</p>
   </section>`);
 }
 
@@ -783,6 +931,7 @@ function renderProgress() {
       <h1>Fortschritt</h1>
       ${examChip()}
     </header>
+    ${skylineTeaser()}
 
     <div class="panel ready-hero">
       <div class="ready-hero-top">
@@ -1394,7 +1543,7 @@ function drillOptions(item) {
 function startDrill(n = DRILL_LEN, mission = false) {
   const ids = pickDrill(drillPool(), n);
   if (!ids.length) return;
-  drill = { ids, i: 0, picked: null, options: drillOptions(aufgabeById.get(ids[0])), right: 0, missed: [], start: Date.now(), mission };
+  drill = { ids, i: 0, picked: null, options: drillOptions(aufgabeById.get(ids[0])), right: 0, missed: [], start: Date.now(), mission, points: 0 };
   renderDrill();
   window.scrollTo(0, 0);
 }
@@ -1446,12 +1595,13 @@ function renderDrill() {
     const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     const missed = drill.missed.map((id) => aufgabeById.get(id));
     if (drill.mission) {
-      show(missionSummary(`Methode erkennen: ${drill.right} von ${drill.ids.length} richtig in ${time} Minuten.`));
+      show(missionSummary(`Methode erkennen: ${drill.right} von ${drill.ids.length} richtig in ${time} Minuten.`, drill.points));
       return;
     }
     show(`<section class="summary drill-summary">
       <h1>${drill.right} von ${drill.ids.length} richtig</h1>
       <p class="summary-main">in ${time} Minuten</p>
+      ${pointsNote(drill.points)}
       ${streakNote()}
       ${missed.length ? `<div class="panel drill-missed"><h2>Noch einmal anschauen</h2><ul class="weak-list">${missed.map((a) => `<li>${fmt(a.a)}<small>${fmt(METHODEN[a.m])}</small></li>`).join('')}</ul></div>`
         : '<p class="muted">Alles richtig erkannt.</p>'}
@@ -1681,6 +1831,7 @@ function route() {
   else if (name === 'pruefen') openCheck(arg);
   else if (name === 'methoden') renderDrill();
   else if (name === 'fortschritt') renderProgress();
+  else if (name === 'skyline') renderSkyline();
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
   else renderHome();
@@ -1705,6 +1856,18 @@ const actions = {
     if (next) startMissionPart(next.id);
   },
   'mission-part': (el) => startMissionPart(el.dataset.part),
+  'sky-buy': (el) => {
+    const item = SHOP.find((x) => x.id === el.dataset.id);
+    const pts = pointsSummary();
+    if (!item || store.shop()[item.id] || pts.balance < item.preis) return;
+    if (item.braucht && !store.shop()[item.braucht]) return;
+    store.buy(item.id);
+    const y = window.scrollY;
+    renderSkyline();
+    window.scrollTo(0, y);
+    toast(`${item.icon} <strong>${esc(item.titel)}</strong> gebaut!`);
+    document.querySelector('.sky-scene')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  },
   'start-thema': (el) => {
     const t = themaById.get(el.dataset.thema);
     const today = dateStr();
@@ -1752,6 +1915,7 @@ const actions = {
     const card = cardById.get(check.id);
     const sum = checkSummary(card);
     store.addCheck(card.id, { d: dateStr(), gleich: sum.gleich, anders: sum.anders, fehlt: sum.fehlt, of: sum.total, result: check.result });
+    store.earn(card.klausurthema, 5);
     check.phase = 'fertig';
     renderCheck();
     document.querySelector('.check-result')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -1759,6 +1923,7 @@ const actions = {
   'check-rate': (el) => {
     store.rate(check.id, Number(el.dataset.r), 'selbstkontrolle');
     store.countPart('a');
+    store.earn(cardById.get(check.id).klausurthema, Number(el.dataset.r) === AGAIN ? 1 : 3);
     check.rated = true;
     const y = window.scrollY; renderCheck(); window.scrollTo(0, y);
   },
@@ -1782,6 +1947,7 @@ const actions = {
     else drill.missed.push(item.id);
     store.recordDrill(item.id, ok);
     store.countPart('m');
+    if (ok) { store.earn(null, 1); drill.points += 1; }
     renderDrill();
   },
   'drill-next': () => {
@@ -1981,7 +2147,7 @@ sync.onStatus(() => {
     const typing = block?.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
     if (block && !typing) block.innerHTML = syncBlock();
   }
-  if (lastPhase === 'syncing' && s.phase === 'idle' && (name === '' || name === 'inhalte' || name === 'formelblatt' || name === 'fortschritt')) route();
+  if (lastPhase === 'syncing' && s.phase === 'idle' && ['', 'inhalte', 'formelblatt', 'fortschritt', 'skyline'].includes(name)) route();
   else if (!wasReady && s.ready && !s.signedIn && name === '') route(); // Hinweis „Konto erstellen“ zeigen
   lastPhase = s.phase;
   wasReady = s.ready;

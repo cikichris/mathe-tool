@@ -3,6 +3,7 @@
 Lern-App für **Mathematik (RE), Wintersemester 26/27**. Vorlesungen und Übungen werden Woche für Woche eingepflegt und als Karten und Aufgaben abgefragt. Ein Wiederholungsplan sorgt dafür, dass alles bis zur Klausur regelmäßig wiederkommt.
 
 - **Heute:** Lernserie mit Wochenleiste, Wochenziel und Joker (ein verpasster Tag pro Woche wird überbrückt). Dazu die **Tagesmission** für etwa 10 Minuten: 8 Karten wiederholen, eine Aufgabe des Tages auf Papier rechnen, 5× Methode erkennen. Außerdem Klausurreife auf einen Blick, Abfrage aller fälligen Karten, Schwachstellen.
+- **Skyline:** Lernpunkte für Karten, Aufgaben, Missionen und Meilensteine. Jedes Klausurthema ist ein Hochhaus, das mit dem Lernen wächst. Die Fenster leuchten je nach Klausurreife. Mit den Punkten baust du Extras wie Fluss, Brücke, Kran oder Feuerwerk.
 - **Fortschritt:** Klausurreife gesamt und pro Thema (mit „Üben“ pro Thema), Prognose bis zur Klausur, Lernaktivität der letzten 12 Wochen, Stand jeder Einheit, Trefferquote bei „Methode erkennen“, eigene Lösungen und Meilensteine.
 - **Inhalte:** alle Karten nach Woche, Vorlesung und Übung. Jede Einheit lässt sich frei üben.
 - **Aufgaben** mit gestuften Tipps, kommentiertem Lösungsweg, typischen Fehlern und dem Rezept für den Aufgabentyp.

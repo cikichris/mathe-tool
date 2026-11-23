@@ -33,6 +33,10 @@ function blank() {
     badgesDirty: false,
     missionPick: { d: '', card: '' },    // Aufgabe des Tages (nur auf diesem Gerät)
     owner: '',                           // Konto, zu dem dieser Lernstand gehört ('' = ohne Login gelernt)
+    // Lernpunkte für die Skyline: log: Tag -> { Klausurthema: Punkte, _: allgemein };
+    // 'start' = einmaliges Startkapital aus dem bisherigen Lernstand; shop: gebaute Extras -> Datum
+    points: { log: {}, shop: {}, init: false, upd: 0 },
+    pointsDirty: false,
   };
 }
 
@@ -54,6 +58,7 @@ export function load() {
     state.activity = { ...blank().activity, ...state.activity };
     state.badges = { ...blank().badges, ...state.badges };
     state.missionPick ||= blank().missionPick;
+    state.points = { ...blank().points, ...state.points };
     state.prep ||= blank().prep;
     state.checks ||= blank().checks;
     state.settings = { ...blank().settings, ...state.settings };
@@ -123,6 +128,53 @@ export function setMissionPick(d, card) {
 }
 
 export const badgesGot = () => state.badges.got;
+
+// ---------------------------------------------------------------------
+//  Lernpunkte (Skyline)
+// ---------------------------------------------------------------------
+
+/** Punkte gutschreiben. thema = Klausurthema der Karte oder null (allgemein). */
+export function earn(thema, n, today = dateStr()) {
+  if (!n) return;
+  const day = state.points.log[today] || {};
+  const key = thema || '_';
+  day[key] = (day[key] || 0) + n;
+  state.points.log[today] = day;
+  state.points.upd = Date.now();
+  state.pointsDirty = true;
+  save();
+}
+
+/** Summe der gesammelten Punkte pro Klausurthema ('_' = allgemein). */
+export function pointsByKey() {
+  const sum = {};
+  for (const day of Object.values(state.points.log)) {
+    for (const [k, n] of Object.entries(day)) sum[k] = (sum[k] || 0) + n;
+  }
+  return sum;
+}
+
+export const pointsInitDone = () => state.points.init;
+
+/** Einmalig: Startkapital für alles, was schon vor den Punkten gelernt wurde. */
+export function pointsInit(start) {
+  if (state.points.init) return;
+  state.points.log.start = start;
+  state.points.init = true;
+  state.points.upd = Date.now();
+  state.pointsDirty = true;
+  save();
+}
+
+export const shop = () => state.points.shop;
+
+export function buy(id, today = dateStr()) {
+  if (state.points.shop[id]) return;
+  state.points.shop[id] = today;
+  state.points.upd = Date.now();
+  state.pointsDirty = true;
+  save();
+}
 export const counter = (name) => state.badges.cnt[name] || 0;
 
 export function bump(name) {
@@ -318,6 +370,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   let seenPrep = false;
   let seenChecks = false;
   let seenBadges = false;
+  let seenPoints = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -368,6 +421,29 @@ export function applyRemote({ cards = [], userData = [] }) {
       state.badgesDirty = localHasMore;
       if (localHasMore) state.badges.upd = Date.now();
     }
+    if (row.key === 'points') {
+      // Pro Tag und Thema gilt der größere Wert, Extras werden vereinigt
+      seenPoints = true;
+      const rLog = row.value?.log || {};
+      const rShop = row.value?.shop || {};
+      let localHasMore = false;
+      for (const [d, day] of Object.entries(rLog)) {
+        const l = state.points.log[d] || {};
+        for (const [k, n] of Object.entries(day)) l[k] = Math.max(l[k] || 0, n);
+        state.points.log[d] = l;
+      }
+      for (const [d, day] of Object.entries(state.points.log)) {
+        for (const [k, n] of Object.entries(day)) if (n > (rLog[d]?.[k] || 0)) localHasMore = true;
+      }
+      for (const [id, d] of Object.entries(rShop)) {
+        if (!state.points.shop[id] || d < state.points.shop[id]) state.points.shop[id] = d;
+      }
+      for (const [id, d] of Object.entries(state.points.shop)) if (rShop[id] !== d) localHasMore = true;
+      if (row.value?.init) state.points.init = true;
+      else if (state.points.init) localHasMore = true;
+      state.pointsDirty = localHasMore;
+      if (localHasMore) state.points.upd = Date.now();
+    }
     if (row.key === 'checks') {
       seenChecks = true;
       if (remoteUpd > state.checks.upd) {
@@ -403,6 +479,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   if (!seenPrep && state.prep.upd) state.prepDirty = true;
   if (!seenChecks && state.checks.upd) state.checksDirty = true;
   if (!seenBadges && state.badges.upd) state.badgesDirty = true;
+  if (!seenPoints && state.points.upd) state.pointsDirty = true;
   if (!seenActivity && (Object.keys(state.activity.days).length || state.activity.backfilled)) state.activityDirty = true;
   save();
 }
@@ -436,6 +513,9 @@ export function outbox() {
       updated_at: new Date().toISOString(),
     });
   }
+  if (state.pointsDirty) {
+    userData.push({ key: 'points', value: { log: JSON.parse(JSON.stringify(state.points.log)), shop: { ...state.points.shop }, init: state.points.init }, updated_at: new Date(state.points.upd || Date.now()).toISOString() });
+  }
   if (state.badgesDirty) {
     userData.push({ key: 'badges', value: { got: { ...state.badges.got }, cnt: { ...state.badges.cnt } }, updated_at: new Date(state.badges.upd || Date.now()).toISOString() });
   }
@@ -456,6 +536,7 @@ export function markPushed(box) {
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
     if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
     if (row.key === 'prep' && new Date(state.prep.upd).toISOString() === row.updated_at) state.prepDirty = false;
+    if (row.key === 'points' && JSON.stringify({ log: state.points.log, shop: state.points.shop, init: state.points.init }) === JSON.stringify(row.value)) state.pointsDirty = false;
     if (row.key === 'badges' && JSON.stringify({ got: state.badges.got, cnt: state.badges.cnt }) === JSON.stringify(row.value)) state.badgesDirty = false;
     if (row.key === 'checks' && new Date(state.checks.upd).toISOString() === row.updated_at) state.checksDirty = false;
     if (row.key === 'activity') {
@@ -470,5 +551,5 @@ export function markPushed(box) {
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty || state.badgesDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty || state.badgesDirty || state.pointsDirty;
 }
