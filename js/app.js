@@ -6,24 +6,28 @@
 //    #/lernen           laufende Abfrage
 //    #/inhalte          alle Wochen und Einheiten
 //    #/inhalte/vl01     eine Einheit mit allen Karten
+//    #/fortschritt      Klausurreife, Lernserie, Meilensteine
 //    #/formelblatt      Formelblatt-Builder
 //    #/einstellungen    Klausurtermin, Login, Daten
 // =====================================================================
 import * as store from './store.js';
 import * as sync from './sync.js';
 import {
-  weeks, cards, cardById, unitById, sheetItems, uebungen, nextUebung,
+  weeks, units, cards, cardById, unitById, sheetItems, uebungen, nextUebung, themen, themaById,
   TYP_LABEL, HERKUNFT_LABEL, HERKUNFT_KURZ, TEIL_LABEL,
 } from './content.js';
 import { fmt, esc, typeset } from './render.js';
 import { plotSVG } from './plot.js';
 import {
   AGAIN, HARD, GOOD, EASY, RATING_LABELS,
-  dateStr, daysBetween, isNew, isDue, stage, schedule, intervalLabel,
+  dateStr, daysBetween, addDays, isNew, isDue, stage, schedule, intervalLabel,
 } from './srs.js';
 import { COURSE_NAME } from '../config.js';
 import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
-import { computeStreak, lastDays, DEFAULT_GOAL } from './streak.js';
+import {
+  computeStreak, lastDays, weekDays, weeksReached, weekStart, DEFAULT_GOAL, DEFAULT_WEEK_GOAL,
+} from './streak.js';
+import { readiness, readinessLabel, milestones, cardReadiness, THEMA_REIF } from './progress.js';
 import * as photos from './photos.js';
 
 const view = document.getElementById('view');
@@ -288,6 +292,10 @@ function renderSession() {
     session.finished = true;
     const plan = todayPlan();
     const more = plan.due.length + plan.fresh.length;
+    if (session.mission) {
+      show(missionSummary(`${plural(session.done, 'Karte', 'Karten')} bearbeitet${session.again ? `, ${session.again}-mal „Nochmal“` : ''}.`));
+      return;
+    }
     show(`<section class="summary">
       <h1>Geschafft</h1>
       <p class="summary-main">${plural(session.done, 'Karte', 'Karten')} bearbeitet${session.again ? `, ${session.again}-mal „Nochmal“` : ''}.</p>
@@ -319,7 +327,13 @@ function renderSession() {
 
 function rateCurrent(rating) {
   const id = session.queue.shift();
+  const card = cardById.get(id);
   store.rate(id, rating, session.mode);
+  store.countPart('k');
+  if (card.typ === 'aufgabe') {
+    store.countPart('a');
+    if (rating >= GOOD && session.ui.tips === 0) store.bump('ohneTipp');
+  }
   if (rating === AGAIN) {
     session.again += 1;
     session.queue.push(id);
@@ -340,50 +354,239 @@ function rateCurrent(rating) {
 // ---------------------------------------------------------------------
 
 function streakNow() {
-  return computeStreak(store.activityDays(), dateStr(), store.settings().dailyGoal || DEFAULT_GOAL);
+  const set = store.settings();
+  return computeStreak(store.activityDays(), dateStr(), set.dailyGoal || DEFAULT_GOAL, store.missionDays(), set.weekGoal || DEFAULT_WEEK_GOAL);
+}
+
+const WT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+function weekRow(st) {
+  const cells = weekDays(store.activityDays(), dateStr(), st.goal, store.missionDays(), st.bridged).map((x, i) => {
+    const cls = x.done ? 'is-done' : x.joker ? 'is-joker' : x.future ? 'is-future' : x.today ? '' : 'is-missed';
+    const what = x.done ? (store.missionDays()[x.d] ? 'Mission geschafft' : 'Tagesziel erreicht') : x.joker ? 'Joker eingesetzt' : x.future ? 'kommt noch' : x.today ? 'heute, noch offen' : 'nicht gelernt';
+    const mark = x.done ? '✓' : x.joker ? '🛡️' : '';
+    return `<span class="wk-day ${cls} ${x.today ? 'is-today' : ''}" title="${shortDate(x.d)}: ${what}"><span class="wk-dot" aria-hidden="true">${mark}</span><span class="wk-label">${WT[i]}</span><span class="visually-hidden">${what}</span></span>`;
+  }).join('');
+  return `<div class="wk-row" aria-label="Diese Woche">${cells}</div>`;
 }
 
 function streakPanel() {
   const st = streakNow();
-  const left = Math.max(0, st.goal - st.todayCount);
-  const pct = Math.min(100, Math.round((st.todayCount / st.goal) * 100));
   let headline;
   let sub;
   if (st.todayDone) {
     headline = `${plural(st.current, 'Tag', 'Tage')} in Folge`;
-    sub = 'Tagesziel geschafft. Morgen geht es weiter.';
+    sub = 'Heute geschafft. Morgen geht es weiter.';
   } else if (st.current > 0) {
     headline = `${plural(st.current, 'Tag', 'Tage')} in Folge`;
-    sub = `Heute noch ${plural(left, 'Frage', 'Fragen')}, dann sind es ${st.current + 1}.`;
+    sub = st.jokerYesterday
+      ? `Gestern hat dein Joker die Serie gerettet. Schaff heute die Mission, dann sind es ${st.current + 1}.`
+      : `Schaff heute die Tagesmission, dann sind es ${st.current + 1}.`;
   } else {
     headline = 'Starte heute eine Serie';
-    sub = `Beantworte ${plural(st.goal, 'Frage', 'Fragen')}, dann zählt der Tag.`;
+    sub = 'Schaff die Tagesmission, dann zählt der Tag.';
   }
-  const today = dateStr();
-  const dots = lastDays(store.activityDays(), today, 14, st.goal).map((x) => {
-    const cls = x.done ? 'is-done' : x.count > 0 ? 'is-some' : '';
-    const label = `${shortDate(x.d)}: ${x.count} beantwortet`;
-    return `<span class="streak-dot ${cls} ${x.d === today ? 'is-today' : ''}" title="${label}" aria-label="${label}"></span>`;
-  }).join('');
+  const weekOk = st.weekDone >= st.weekGoal;
   return `<div class="panel streak ${st.todayDone ? 'is-done' : ''}">
     <div class="streak-top">
       <span class="streak-flame" aria-hidden="true">${st.current > 0 || st.todayDone ? '🔥' : '○'}</span>
       <div class="streak-text"><strong>${headline}</strong><span class="muted small">${sub}</span></div>
       ${st.best > 1 ? `<span class="streak-best" title="Längste Serie">Rekord ${st.best}</span>` : ''}
     </div>
-    <div class="streak-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${st.goal}" aria-valuenow="${Math.min(st.todayCount, st.goal)}" aria-label="Tagesziel">
-      <span style="width:${pct}%"></span>
+    ${weekRow(st)}
+    <div class="streak-meta">
+      <span class="${weekOk ? 'is-ok' : ''}">${weekOk ? '✓ ' : ''}Wochenziel ${st.weekDone} / ${st.weekGoal} Tage</span>
+      <span class="joker ${st.jokerFree ? 'is-free' : ''}" title="Ein verpasster Tag pro Woche wird automatisch überbrückt">🛡️ ${st.jokerFree ? 'Joker bereit' : 'Joker verbraucht'}</span>
     </div>
-    <div class="streak-meta"><span>Heute ${Math.min(st.todayCount, 999)} / ${st.goal}</span><span class="streak-dots" aria-label="Letzte 14 Tage">${dots}</span></div>
   </div>`;
 }
 
 /** Kurze Rückmeldung zur Serie am Ende einer Abfrage oder Trainingsrunde. */
 function streakNote() {
   const st = streakNow();
-  if (st.todayDone) return `<p class="streak-note is-done">🔥 Tagesziel geschafft · ${plural(st.current, 'Tag', 'Tage')} in Folge</p>`;
+  if (st.todayDone) return `<p class="streak-note is-done">🔥 Heute geschafft · ${plural(st.current, 'Tag', 'Tage')} in Folge</p>`;
   const left = st.goal - st.todayCount;
-  return `<p class="streak-note">Noch ${plural(left, 'Frage', 'Fragen')} bis zum Tagesziel${st.current ? ` (Serie: ${plural(st.current, 'Tag', 'Tage')})` : ''}.</p>`;
+  return `<p class="streak-note">Damit der Tag zählt: Tagesmission schaffen oder noch ${plural(left, 'Frage', 'Fragen')} beantworten.</p>`;
+}
+
+// ---------------------------------------------------------------------
+//  Tagesmission: Karten wiederholen, Aufgabe des Tages, Methode erkennen
+// ---------------------------------------------------------------------
+
+const MISSION_CARDS = 8;
+const MISSION_DRILL = 5;
+
+/** Die Rechenaufgabe des Tages: zuerst fällige, dann wacklige, dann neue Aufgaben. */
+function missionTask(today) {
+  const pick = store.missionPick();
+  if (pick.d === today && cardById.has(pick.card)) return cardById.get(pick.card);
+  const tasks = cards.filter((c) => c.typ === 'aufgabe');
+  const st = (c) => store.cardState(c.id);
+  const due = tasks.filter((c) => isDue(st(c), today)).sort((a, b) => st(a).due.localeCompare(st(b).due));
+  const wobbly = tasks.filter((c) => stage(st(c)) === 'lernend')
+    .sort((a, b) => (st(b).lapses - st(a).lapses) || (st(a).ivl - st(b).ivl));
+  const fresh = tasks.filter((c) => isNew(st(c)));
+  const card = due[0] || wobbly[0] || fresh[0] || tasks[Math.floor(Math.random() * tasks.length)];
+  store.setMissionPick(today, card.id);
+  return card;
+}
+
+function missionState(today = dateStr()) {
+  const parts = store.partsToday(today);
+  const task = missionTask(today);
+  const plan = todayPlan();
+  const pool = [...plan.due, ...plan.fresh].filter((c) => c.id !== task.id);
+  const kGoal = Math.min(MISSION_CARDS, parts.k + pool.length);
+  const k = Math.min(parts.k, kGoal);
+  const aDone = store.cardState(task.id)?.last === today;
+  const m = Math.min(parts.m, MISSION_DRILL);
+  const steps = [
+    { id: 'k', done: k >= kGoal, titel: 'Karten wiederholen', info: kGoal ? `${k} / ${kGoal}` : 'heute nichts fällig', n: k, of: kGoal },
+    { id: 'a', done: aDone, titel: 'Aufgabe des Tages', info: `${task.unit.kurz} · ${task.thema}`, n: aDone ? 1 : 0, of: 1 },
+    { id: 'm', done: m >= MISSION_DRILL, titel: 'Methode erkennen', info: `${m} / ${MISSION_DRILL}`, n: m, of: MISSION_DRILL },
+  ];
+  return { steps, task, pool, kGoal, k, m, done: steps.every((x) => x.done), marked: Boolean(store.missionDays()[today]) };
+}
+
+function missionPanel(ms = missionState()) {
+  const doneCount = ms.steps.filter((x) => x.done).length;
+  const next = ms.steps.find((x) => !x.done);
+  const list = ms.steps.map((x, i) => `<li class="${x.done ? 'is-done' : ''} ${x === next ? 'is-next' : ''}">
+      <button class="mission-step" data-action="mission-part" data-part="${x.id}" ${x.done && x.id !== 'a' ? 'disabled' : ''}>
+        <span class="mission-check" aria-hidden="true">${x.done ? '✓' : i + 1}</span>
+        <span class="mission-text"><strong>${x.titel}</strong><small>${esc(x.info)}</small></span>
+        ${x.of > 1 ? `<span class="mission-mini" aria-hidden="true"><span style="width:${Math.round((x.n / x.of) * 100)}%"></span></span>` : ''}
+      </button>
+    </li>`).join('');
+  const foot = ms.done
+    ? '<p class="mission-done">🎉 Mission geschafft! Alles Weitere ist Bonus.</p>'
+    : `<button class="btn btn-primary btn-wide" data-action="mission-go">${doneCount ? `Weiter: ${next.titel}` : 'Mission starten'}</button>`;
+  return `<div class="panel mission ${ms.done ? 'is-done' : ''}">
+    <div class="mission-head"><strong>Tagesmission</strong><span class="muted small">ca. 10 Minuten</span><span class="mission-count">${doneCount} / 3</span></div>
+    <ol class="mission-list">${list}</ol>
+    ${ms.done ? '' : `<p class="muted small mission-task-hint">Aufgabe des Tages auf Papier rechnen. Danach Lösung aufdecken oder <a href="#/pruefen/${ms.task.id}">mit Foto prüfen</a>.</p>`}
+    ${foot}
+  </div>`;
+}
+
+/** Zusammenfassung am Ende eines Missionsteils. */
+function missionSummary(line) {
+  const ms = missionState();
+  const next = ms.steps.find((x) => !x.done);
+  return `<section class="summary">
+    ${ms.done ? '<div class="party" aria-hidden="true">🎉</div><h1>Tagesmission geschafft!</h1>' : '<h1>Teil geschafft</h1>'}
+    <p class="summary-main">${line}</p>
+    ${streakNote()}
+    ${missionPanel(ms)}
+    <div class="action-row">
+      ${next ? '' : '<a class="btn btn-primary" href="#/">Zur Übersicht</a>'}
+      ${next ? '<a class="btn btn-quiet" href="#/">Später weitermachen</a>' : ''}
+    </div>
+  </section>`;
+}
+
+function startMissionPart(part) {
+  const ms = missionState();
+  if (part === 'k') {
+    const list = ms.pool.slice(0, Math.max(1, ms.kGoal - ms.k));
+    if (!list.length) return;
+    startSession(list, 'heute', 'Tagesmission');
+    session.mission = true;
+  } else if (part === 'a') {
+    startSession([ms.task], 'mission', 'Aufgabe des Tages');
+    session.mission = true;
+  } else if (part === 'm') {
+    if (location.hash !== '#/methoden') location.hash = '#/methoden';
+    drillFilter = 'alle';
+    startDrill(Math.max(1, MISSION_DRILL - ms.m), true);
+  }
+}
+
+// ---------------------------------------------------------------------
+//  Meilensteine und kurze Meldungen
+// ---------------------------------------------------------------------
+
+function toast(html, cls = '') {
+  let box = document.getElementById('toasts');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'toasts';
+    box.className = 'toasts';
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
+    document.body.append(box);
+  }
+  const el = document.createElement('div');
+  el.className = `toast ${cls}`;
+  el.innerHTML = html;
+  box.append(el);
+  setTimeout(() => el.classList.add('is-out'), 4200);
+  setTimeout(() => el.remove(), 4700);
+}
+
+function stateOf(id) {
+  return store.cardState(id);
+}
+
+function milestoneContext() {
+  const today = dateStr();
+  const set = store.settings();
+  const st = streakNow();
+  const counts = stageCounts(cards);
+  const aufgaben = cards.filter((c) => c.typ === 'aufgabe');
+  const checks = Object.values(store.allChecks()).flat();
+  const drillStats = store.drillStats();
+  const blaetter = units.filter((u) => u.art === 'uebung').map((u) => {
+    const t = u.karten.filter((c) => c.typ === 'aufgabe');
+    return { id: u.id, kurz: `Blatt ${u.nummer}`, total: t.length, sicher: t.filter((c) => stage(stateOf(c.id)) === 'sicher').length };
+  }).filter((b) => b.total);
+  const prepFull = uebungen.filter((u) => {
+    const pr = prepProgress(u);
+    return pr.total && pr.done >= pr.total;
+  }).length;
+  const themenR = themen.map((t) => ({ ...t, r: readiness(t.karten, stateOf, today) }));
+  return {
+    bestStreak: st.best,
+    missions: Object.keys(store.missionDays()).length,
+    weeks: weeksReached(store.activityDays(), today, st.goal, store.missionDays(), set.weekGoal || DEFAULT_WEEK_GOAL),
+    sicher: counts.sicher,
+    begonnen: counts.sicher + counts.lernend,
+    total: cards.length,
+    ohneTipp: store.counter('ohneTipp'),
+    aufgabenSicher: aufgaben.filter((c) => stage(stateOf(c.id)) === 'sicher').length,
+    checks: checks.length,
+    checksPerfect: checks.filter((c) => c.result === 'richtig' && !c.fehlt).length,
+    drillRight: Object.values(drillStats).reduce((sum, [r = 0]) => sum + r, 0),
+    drillCovered: AUFGABEN.filter((a) => (drillStats[a.id]?.[0] || 0) > 0).length,
+    drillTotal: AUFGABEN.length,
+    prepFull,
+    overall: readiness(themen.flatMap((t) => t.karten), stateOf, today),
+    blaetter,
+    themen: themenR,
+  };
+}
+
+let watchTimer = null;
+let watchReady = false;
+/** Nach jeder Änderung: Tagesmission abhaken und neue Meilensteine melden. */
+function watchProgress() {
+  clearTimeout(watchTimer);
+  watchTimer = setTimeout(() => {
+    const today = dateStr();
+    const ms = missionState(today);
+    if (ms.done && !ms.marked) {
+      store.markMission(today);
+      if (watchReady) toast(`🎯 <strong>Tagesmission geschafft!</strong> ${streakNow().current > 1 ? `${streakNow().current} Tage in Folge.` : 'Die Serie läuft.'}`, 'is-good');
+    }
+    const list = milestones(milestoneContext());
+    const fresh = store.award(list.filter((m) => m.done).map((m) => m.id), today);
+    if (fresh.length && watchReady) {
+      const byId = new Map(list.map((m) => [m.id, m]));
+      if (fresh.length > 3) toast(`🏅 <strong>${fresh.length} Meilensteine freigeschaltet</strong> <a href="#/fortschritt">ansehen</a>`);
+      else fresh.forEach((id) => toast(`${byId.get(id).icon} <strong>Meilenstein: ${esc(byId.get(id).titel)}</strong><br><span>${esc(byId.get(id).text)}</span>`));
+    }
+    watchReady = true;
+  }, 250);
 }
 
 function examChip() {
@@ -413,10 +616,24 @@ function weekList(detailed) {
   }).join('');
 }
 
+function readinessTeaser() {
+  const today = dateStr();
+  const all = readiness(themen.flatMap((t) => t.karten), stateOf, today);
+  const weakest = themen
+    .map((t) => ({ t, r: readiness(t.karten, stateOf, today), started: t.karten.some((c) => !isNew(stateOf(c.id))) }))
+    .filter((x) => x.started)
+    .sort((a, b) => a.r - b.r)
+    .slice(0, 2);
+  return `<a class="panel ready-teaser" href="#/fortschritt">
+    <span class="ready-num">${Math.round(all * 100)}<small>%</small></span>
+    <span class="ready-text"><strong>Klausurreife</strong><span class="muted small">${weakest.length ? `Am meisten Luft: ${weakest.map((x) => esc(x.t.titel)).join(', ')}` : 'Wächst mit jeder sicheren Karte'}</span></span>
+    <span class="prep-teaser-go" aria-hidden="true">›</span>
+  </a>`;
+}
+
 function renderHome() {
   const plan = todayPlan();
   const n = plan.due.length + plan.fresh.length;
-  const counts = stageCounts(cards);
   const weak = cards
     .filter((c) => (store.cardState(c.id)?.lapses || 0) > 0)
     .sort((a, b) => store.cardState(b.id).lapses - store.cardState(a.id).lapses)
@@ -424,11 +641,12 @@ function renderHome() {
 
   let today;
   if (n) {
-    today = `<div class="today-numbers">
+    today = `<p class="panel-title">Alle fälligen Karten</p>
+      <div class="today-numbers">
         <div><strong>${plan.due.length}</strong><span>${plan.due.length === 1 ? 'Wiederholung' : 'Wiederholungen'}</span></div>
         <div><strong>${plan.fresh.length}</strong><span>${plan.fresh.length === 1 ? 'neue Karte' : 'neue Karten'}</span></div>
       </div>
-      <button class="btn btn-primary btn-wide" data-action="start-today">Abfrage starten</button>`;
+      <button class="btn btn-wide" data-action="start-today">Abfrage starten</button>`;
   } else if (plan.freshTotal) {
     today = `<p class="today-done">Für heute ist alles erledigt.</p>
       <p class="muted">Es warten noch ${plural(plan.freshTotal, 'neue Karte', 'neue Karten')}. Dein Tageslimit ist erreicht.</p>
@@ -445,17 +663,11 @@ function renderHome() {
       ${examChip()}
     </header>
     ${streakPanel()}
-    <div class="panel today">${today}</div>
+    ${missionPanel()}
     ${prepTeaser()}
+    ${readinessTeaser()}
+    <div class="panel today">${today}</div>
     ${drillTeaser()}
-
-    <h2>Fortschritt</h2>
-    <div class="legend">
-      <span><i class="dot dot-safe"></i>${counts.sicher} sicher</span>
-      <span><i class="dot dot-learn"></i>${counts.lernend} in Arbeit</span>
-      <span><i class="dot dot-new"></i>${counts.neu} neu</span>
-    </div>
-    ${weekList(false)}
 
     ${weak.length ? `<h2>Schwachstellen</h2>
       <div class="panel">
@@ -463,6 +675,161 @@ function renderHome() {
         <button class="btn btn-wide" data-action="start-weak">Schwachstellen üben</button>
       </div>` : ''}
     ${store.isMemoryOnly() ? '<p class="warn">Dieser Browser erlaubt kein Speichern (privater Modus?). Dein Lernstand geht beim Schließen verloren.</p>' : ''}
+  </section>`);
+}
+
+// ---------------------------------------------------------------------
+//  Fortschritt: Klausurreife, Lernserie, Meilensteine
+// ---------------------------------------------------------------------
+
+function pct(r) {
+  return Math.round(r * 100);
+}
+
+function heatmap(st) {
+  const today = dateStr();
+  const days = store.activityDays();
+  const mission = store.missionDays();
+  const WEEKS = 12;
+  const start = addDays(weekStart(today), -7 * (WEEKS - 1));
+  let cols = '';
+  for (let w = 0; w < WEEKS; w += 1) {
+    let cells = '';
+    for (let i = 0; i < 7; i += 1) {
+      const d = addDays(start, w * 7 + i);
+      if (d > today) { cells += '<span class="hm-cell is-future"></span>'; continue; }
+      const n = days[d] || 0;
+      const lvl = mission[d] ? 4 : n >= st.goal ? 3 : n >= st.goal / 2 ? 2 : n > 0 ? 1 : 0;
+      const joker = st.bridged.has(d);
+      const what = mission[d] ? `Mission geschafft, ${n} Antworten` : joker ? 'Joker eingesetzt' : `${n} Antworten`;
+      cells += `<span class="hm-cell lvl-${lvl} ${joker ? 'is-joker' : ''} ${d === today ? 'is-today' : ''}" title="${shortDate(d)}: ${what}"></span>`;
+    }
+    cols += `<span class="hm-col">${cells}</span>`;
+  }
+  return `<div class="hm" role="img" aria-label="Lernaktivität der letzten ${WEEKS} Wochen">
+      <span class="hm-days" aria-hidden="true"><span>Mo</span><span></span><span>Mi</span><span></span><span>Fr</span><span></span><span>So</span></span>
+      <span class="hm-grid">${cols}</span>
+    </div>
+    <div class="hm-legend" aria-hidden="true">weniger <span class="hm-cell lvl-0"></span><span class="hm-cell lvl-1"></span><span class="hm-cell lvl-2"></span><span class="hm-cell lvl-3"></span><span class="hm-cell lvl-4"></span> mehr · <span class="hm-cell lvl-0 is-joker"></span> Joker</div>`;
+}
+
+function forecastLine() {
+  const today = dateStr();
+  const fresh = cards.filter((c) => isNew(stateOf(c.id))).length;
+  const per = store.settings().newPerDay || 0;
+  if (!fresh) return 'Du hast jede Karte schon einmal gelernt.';
+  if (!per) return `Noch ${plural(fresh, 'Karte', 'Karten')} nie gelernt. Neue Karten pro Tag stehen auf 0.`;
+  const until = addDays(today, Math.ceil(fresh / per) - 1);
+  const exam = store.settings().examDate;
+  const buffer = exam ? daysBetween(until, exam) : null;
+  return `Noch ${plural(fresh, 'Karte', 'Karten')} nie gelernt. Bei ${per} pro Tag hast du am ${shortDate(until)} alles einmal gesehen${buffer !== null && buffer > 0 ? `, ${plural(buffer, 'Tag', 'Tage')} vor der Klausur` : ''}.`;
+}
+
+function renderProgress() {
+  const today = dateStr();
+  const st = streakNow();
+  const ctx = milestoneContext();
+  const counts = stageCounts(cards);
+  const aufgaben = cards.filter((c) => c.typ === 'aufgabe');
+  const aSicher = aufgaben.filter((c) => stage(stateOf(c.id)) === 'sicher').length;
+
+  const themeRows = ctx.themen.map((t) => {
+    const tasks = t.karten.filter((c) => c.typ === 'aufgabe');
+    const tSicher = tasks.filter((c) => stage(stateOf(c.id)) === 'sicher').length;
+    const p = pct(t.r);
+    return `<li class="theme-row ${t.r >= THEMA_REIF ? 'is-ready' : ''}">
+      <div class="theme-top"><strong>${esc(t.titel)}</strong><span class="theme-pct">${p} %</span></div>
+      <span class="meter" role="img" aria-label="${p} Prozent"><span style="width:${p}%"></span><i style="left:${pct(THEMA_REIF)}%" title="klausurreif ab ${pct(THEMA_REIF)} %"></i></span>
+      <div class="theme-foot"><span class="muted small">${readinessLabel(t.r)} · ${tSicher} von ${plural(tasks.length, 'Aufgabe', 'Aufgaben')} sicher</span>
+        <button class="btn btn-quiet btn-small" data-action="start-thema" data-thema="${t.id}">Üben</button></div>
+    </li>`;
+  }).join('');
+
+  const drillStats = store.drillStats();
+  const drillRows = GRUPPEN.map((g) => {
+    let r = 0;
+    let n = 0;
+    for (const a of AUFGABEN.filter((x) => x.g === g.id)) {
+      const [right = 0, wrong = 0] = drillStats[a.id] || [];
+      r += right;
+      n += right + wrong;
+    }
+    const p = n ? Math.round((r / n) * 100) : 0;
+    return `<li class="mini-row"><span>${esc(g.titel)}</span><span class="meter meter-thin"><span style="width:${p}%"></span></span><span class="mini-val">${n ? `${p} %` : '–'}</span></li>`;
+  }).join('');
+
+  const checks = Object.values(store.allChecks()).flat();
+  const checkedTasks = Object.keys(store.allChecks()).filter((id) => store.checksFor(id).length).length;
+  const checksOk = checks.filter((c) => c.result === 'richtig').length;
+
+  const ms = milestones(ctx);
+  const got = store.badgesGot();
+  const groups = [...new Set(ms.map((m) => m.gruppe))];
+  const badgeHtml = groups.map((g) => `<h3 class="badge-group">${esc(g)}</h3><ul class="badges">${ms.filter((m) => m.gruppe === g).map((m) => {
+    const earned = Boolean(got[m.id]) || m.done;
+    const prog = Math.min(m.p[0], m.p[1]);
+    return `<li class="ms ${earned ? 'is-earned' : ''}" title="${esc(m.text)}">
+      <span class="ms-icon" aria-hidden="true">${m.icon}</span>
+      <span class="ms-text"><strong>${esc(m.titel)}</strong><small>${esc(m.text)}</small>
+      ${earned ? `<small class="ms-date">${got[m.id] ? `seit ${shortDate(got[m.id])}` : 'geschafft'}</small>` : `<span class="meter meter-thin"><span style="width:${Math.round((prog / m.p[1]) * 100)}%"></span></span><small class="ms-date">${prog} / ${m.p[1]}</small>`}</span>
+    </li>`;
+  }).join('')}</ul>`).join('');
+  const earnedCount = ms.filter((m) => got[m.id] || m.done).length;
+
+  show(`<section class="progress-page">
+    <header class="page-head">
+      <p class="eyebrow">${esc(COURSE_NAME)}</p>
+      <h1>Fortschritt</h1>
+      ${examChip()}
+    </header>
+
+    <div class="panel ready-hero">
+      <div class="ready-hero-top">
+        <span class="ready-big">${pct(ctx.overall)}<small>%</small></span>
+        <span><strong>Klausurreife gesamt</strong><span class="muted small">${readinessLabel(ctx.overall)}</span></span>
+      </div>
+      <span class="meter" role="img" aria-label="${pct(ctx.overall)} Prozent"><span style="width:${pct(ctx.overall)}%"></span></span>
+      <div class="stat-tiles">
+        <div><strong>${aSicher}<small> / ${aufgaben.length}</small></strong><span>Aufgaben sicher</span></div>
+        <div><strong>${counts.sicher}<small> / ${cards.length}</small></strong><span>Karten sicher</span></div>
+        <div><strong>${counts.lernend}</strong><span>in Arbeit</span></div>
+      </div>
+      <p class="muted small">${forecastLine()}</p>
+    </div>
+
+    <h2>Klausurreife nach Thema</h2>
+    <ul class="panel theme-list">${themeRows}</ul>
+    <p class="muted small explain">So wird gerechnet: Sichere Karten zählen voll, Karten in Arbeit je nach Abstand teilweise, neue gar nicht. Rechenaufgaben zählen doppelt. Ab ${pct(THEMA_REIF)} % gilt ein Thema als klausurreif.</p>
+
+    <h2>Lernserie</h2>
+    <div class="panel">
+      <div class="stat-tiles four">
+        <div><strong>${st.current}</strong><span>Tage in Folge</span></div>
+        <div><strong>${st.best}</strong><span>Rekord</span></div>
+        <div><strong>${ctx.missions}</strong><span>Missionen</span></div>
+        <div><strong>${ctx.weeks}</strong><span>Wochenziele</span></div>
+      </div>
+      ${heatmap(st)}
+    </div>
+
+    <h2>Wochen und Einheiten</h2>
+    <div class="legend">
+      <span><i class="dot dot-safe"></i>${counts.sicher} sicher</span>
+      <span><i class="dot dot-learn"></i>${counts.lernend} in Arbeit</span>
+      <span><i class="dot dot-new"></i>${counts.neu} neu</span>
+    </div>
+    ${weekList(false)}
+
+    <h2>Methode erkennen</h2>
+    <ul class="panel mini-list">${drillRows}</ul>
+
+    <h2>Eigene Lösungen</h2>
+    <div class="panel">
+      <p>${checks.length ? `${plural(checks.length, 'Kontrolle', 'Kontrollen')} bei ${plural(checkedTasks, 'Aufgabe', 'Aufgaben')}, davon ${checksOk}-mal mit richtigem Ergebnis.` : 'Noch keine eigene Lösung geprüft. Bei jeder Rechenaufgabe findest du „Eigene Lösung prüfen“.'}</p>
+    </div>
+
+    <h2>Meilensteine <span class="h2-count">${earnedCount} / ${ms.length}</span></h2>
+    ${badgeHtml}
   </section>`);
 }
 
@@ -1023,10 +1390,10 @@ function drillOptions(item) {
   return shuffled(all.length).map((i) => all[i]);
 }
 
-function startDrill() {
-  const ids = pickDrill(drillPool(), DRILL_LEN);
+function startDrill(n = DRILL_LEN, mission = false) {
+  const ids = pickDrill(drillPool(), n);
   if (!ids.length) return;
-  drill = { ids, i: 0, picked: null, options: drillOptions(aufgabeById.get(ids[0])), right: 0, missed: [], start: Date.now() };
+  drill = { ids, i: 0, picked: null, options: drillOptions(aufgabeById.get(ids[0])), right: 0, missed: [], start: Date.now(), mission };
   renderDrill();
   window.scrollTo(0, 0);
 }
@@ -1077,6 +1444,10 @@ function renderDrill() {
     const secs = Math.round((Date.now() - drill.start) / 1000);
     const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     const missed = drill.missed.map((id) => aufgabeById.get(id));
+    if (drill.mission) {
+      show(missionSummary(`Methode erkennen: ${drill.right} von ${drill.ids.length} richtig in ${time} Minuten.`));
+      return;
+    }
     show(`<section class="summary drill-summary">
       <h1>${drill.right} von ${drill.ids.length} richtig</h1>
       <p class="summary-main">in ${time} Minuten</p>
@@ -1208,7 +1579,11 @@ function renderSettings() {
       <label>Tagesziel für die Lernserie
         <input type="number" inputmode="numeric" min="1" max="200" data-setting="dailyGoal" value="${Number(s.dailyGoal || DEFAULT_GOAL)}">
       </label>
-      <p class="muted small">So viele Fragen am Tag, damit der Tag für die Serie zählt. Es zählen alle beantworteten Karten (Abfrage, Einheiten, Schwachstellen) und Antworten bei „Methode erkennen“. Eine Änderung gilt auch für die zurückliegenden Tage.</p>
+      <p class="muted small">Ein Tag zählt für die Serie, wenn du die Tagesmission schaffst oder so viele Fragen beantwortest. Es zählen alle beantworteten Karten und Antworten bei „Methode erkennen“. Eine Änderung gilt auch für die zurückliegenden Tage.</p>
+      <label>Wochenziel (Lerntage pro Woche)
+        <input type="number" inputmode="numeric" min="1" max="7" data-setting="weekGoal" value="${Number(s.weekGoal || DEFAULT_WEEK_GOAL)}">
+      </label>
+      <p class="muted small">Pro Woche überbrückt ein Joker automatisch einen verpassten Tag, damit die Serie nicht reißt.</p>
     </div>
 
     <h2>Anmeldung und Abgleich</h2>
@@ -1254,6 +1629,7 @@ function route() {
   else if (name === 'live') renderLive(arg);
   else if (name === 'pruefen') openCheck(arg);
   else if (name === 'methoden') renderDrill();
+  else if (name === 'fortschritt') renderProgress();
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
   else renderHome();
@@ -1272,6 +1648,24 @@ const actions = {
   'start-extra': () => {
     const fresh = cards.filter((c) => isNew(store.cardState(c.id))).slice(0, 10);
     startSession(fresh, 'heute', 'Neue Karten');
+  },
+  'mission-go': () => {
+    const next = missionState().steps.find((x) => !x.done);
+    if (next) startMissionPart(next.id);
+  },
+  'mission-part': (el) => startMissionPart(el.dataset.part),
+  'start-thema': (el) => {
+    const t = themaById.get(el.dataset.thema);
+    const today = dateStr();
+    const order = (c) => {
+      const st = stateOf(c.id);
+      if (isDue(st, today)) return 0;
+      if (stage(st) === 'lernend') return 1;
+      if (isNew(st)) return 2;
+      return 3;
+    };
+    const list = [...t.karten].sort((a, b) => order(a) - order(b) || cardReadiness(stateOf(a.id), today) - cardReadiness(stateOf(b.id), today)).slice(0, 15);
+    startSession(list, 'thema', t.titel);
   },
   'start-weak': () => {
     const weak = cards.filter((c) => (store.cardState(c.id)?.lapses || 0) > 0);
@@ -1313,6 +1707,7 @@ const actions = {
   },
   'check-rate': (el) => {
     store.rate(check.id, Number(el.dataset.r), 'selbstkontrolle');
+    store.countPart('a');
     check.rated = true;
     const y = window.scrollY; renderCheck(); window.scrollTo(0, y);
   },
@@ -1335,6 +1730,7 @@ const actions = {
     if (ok) drill.right += 1;
     else drill.missed.push(item.id);
     store.recordDrill(item.id, ok);
+    store.countPart('m');
     renderDrill();
   },
   'drill-next': () => {
@@ -1344,7 +1740,12 @@ const actions = {
     renderDrill();
     window.scrollTo(0, 0);
   },
-  'drill-exit': () => { drill = null; renderDrillStart(); window.scrollTo(0, 0); },
+  'drill-exit': () => {
+    const wasMission = drill?.mission;
+    drill = null;
+    if (wasMission) location.hash = '#/';
+    else { renderDrillStart(); window.scrollTo(0, 0); }
+  },
   'prep-tip': (el) => { prepState(el.dataset.card).tips += 1; prepChanged(el.dataset.card, true); },
   'prep-step': (el) => { prepState(el.dataset.card).steps += 1; prepChanged(el.dataset.card, true); },
   'prep-result': (el) => { prepState(el.dataset.card).result = true; prepChanged(el.dataset.card, true); },
@@ -1413,6 +1814,11 @@ document.addEventListener('change', async (event) => {
     const n = Math.max(1, Math.min(200, Math.round(Number(el.value) || DEFAULT_GOAL)));
     el.value = n;
     store.setSettings({ dailyGoal: n });
+  }
+  if (el.dataset.setting === 'weekGoal') {
+    const n = Math.max(1, Math.min(7, Math.round(Number(el.value) || DEFAULT_WEEK_GOAL)));
+    el.value = n;
+    store.setSettings({ weekGoal: n });
   }
   if (el.dataset.setting === 'newPerDay') {
     const n = Math.max(0, Math.min(100, Math.round(Number(el.value) || 0)));
@@ -1492,10 +1898,12 @@ sync.onStatus(() => {
     const typing = block?.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
     if (block && !(typing && !s.signedIn)) block.innerHTML = syncBlock();
   }
-  if (lastPhase === 'syncing' && s.phase === 'idle' && (name === '' || name === 'inhalte' || name === 'formelblatt')) route();
+  if (lastPhase === 'syncing' && s.phase === 'idle' && (name === '' || name === 'inhalte' || name === 'formelblatt' || name === 'fortschritt')) route();
   lastPhase = s.phase;
 });
 
 store.load();
 route();
+store.onChange(watchProgress);
+watchProgress();
 sync.init();

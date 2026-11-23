@@ -15,18 +15,23 @@ function blank() {
     cards: {},          // card_id -> Zustand (siehe srs.js) + upd (Zeitstempel in ms)
     dirty: {},          // card_id -> true: noch nicht in der Datenbank
     pending: [],        // Bewertungen, die noch hochgeladen werden müssen
-    settings: { examDate: '', newPerDay: 15, dailyGoal: 10, upd: 0 },
+    settings: { examDate: '', newPerDay: 15, dailyGoal: 10, weekGoal: 5, upd: 0 },
     settingsDirty: false,
     sheet: { sel: {}, upd: 0 },   // Formelblatt: item_id -> true/false
     sheetDirty: false,
     drill: { stats: {}, upd: 0 }, // Methode erkennen: aufgabe_id -> [richtig, falsch, letztes Datum]
     drillDirty: false,
-    activity: { days: {}, backfilled: false }, // Lernserie: Datum -> Anzahl beantworteter Fragen
+    // Lernserie: Datum -> Anzahl beantworteter Fragen; parts: Datum -> { k, a, m }
+    // (Karten in Abfragen, Rechenaufgaben, Methode erkennen); mission: Datum -> true
+    activity: { days: {}, parts: {}, mission: {}, backfilled: false },
     activityDirty: false,
     prep: { status: {}, notes: {}, upd: 0 }, // Übungsvorbereitung: card_id -> Status bzw. Frage
     prepDirty: false,
     checks: { list: {}, upd: 0 }, // Eigene Lösung geprüft: card_id -> [{ d, ok, of, result }]
     checksDirty: false,
+    badges: { got: {}, cnt: {}, upd: 0 }, // Meilensteine: id -> Datum; cnt: Zähler (z. B. ohneTipp)
+    badgesDirty: false,
+    missionPick: { d: '', card: '' },    // Aufgabe des Tages (nur auf diesem Gerät)
   };
 }
 
@@ -45,7 +50,9 @@ export function load() {
     const raw = globalThis.localStorage.getItem(KEY);
     if (raw) state = { ...blank(), ...JSON.parse(raw) };
     state.drill ||= blank().drill;
-    state.activity ||= blank().activity;
+    state.activity = { ...blank().activity, ...state.activity };
+    state.badges = { ...blank().badges, ...state.badges };
+    state.missionPick ||= blank().missionPick;
     state.prep ||= blank().prep;
     state.checks ||= blank().checks;
     state.settings = { ...blank().settings, ...state.settings };
@@ -89,6 +96,51 @@ function countActivity(today) {
 }
 
 export const activityDays = () => state.activity.days;
+export const missionDays = () => state.activity.mission;
+export const partsToday = (today = dateStr()) => ({ k: 0, a: 0, m: 0, ...state.activity.parts[today] });
+
+/** Zählt einen Teil der Tagesmission: k = Karte in einer Abfrage, a = Rechenaufgabe, m = Methode erkannt. */
+export function countPart(part, today = dateStr()) {
+  const p = { k: 0, a: 0, m: 0, ...state.activity.parts[today] };
+  p[part] += 1;
+  state.activity.parts[today] = p;
+  state.activityDirty = true;
+  save();
+}
+
+export function markMission(today = dateStr()) {
+  if (state.activity.mission[today]) return;
+  state.activity.mission[today] = true;
+  state.activityDirty = true;
+  save();
+}
+
+export const missionPick = () => state.missionPick;
+export function setMissionPick(d, card) {
+  state.missionPick = { d, card };
+  save();
+}
+
+export const badgesGot = () => state.badges.got;
+export const counter = (name) => state.badges.cnt[name] || 0;
+
+export function bump(name) {
+  state.badges.cnt[name] = (state.badges.cnt[name] || 0) + 1;
+  state.badges.upd = Date.now();
+  state.badgesDirty = true;
+  save();
+}
+
+/** Neue Meilensteine eintragen. Gibt die wirklich neuen IDs zurück. */
+export function award(ids, today = dateStr()) {
+  const fresh = ids.filter((id) => !state.badges.got[id]);
+  if (!fresh.length) return [];
+  for (const id of fresh) state.badges.got[id] = today;
+  state.badges.upd = Date.now();
+  state.badgesDirty = true;
+  save();
+  return fresh;
+}
 export const activityBackfilled = () => state.activity.backfilled;
 
 /**
@@ -245,6 +297,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   let seenActivity = false;
   let seenPrep = false;
   let seenChecks = false;
+  let seenBadges = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -264,9 +317,36 @@ export function applyRemote({ cards = [], userData = [] }) {
       for (const [d, n] of Object.entries(state.activity.days)) {
         if (n > (remote[d] || 0)) localHasMore = true;
       }
+      const rParts = row.value?.parts || {};
+      for (const [d, p] of Object.entries(rParts)) {
+        const l = state.activity.parts[d] || {};
+        state.activity.parts[d] = { k: Math.max(l.k || 0, p.k || 0), a: Math.max(l.a || 0, p.a || 0), m: Math.max(l.m || 0, p.m || 0) };
+      }
+      for (const [d, p] of Object.entries(state.activity.parts)) {
+        const r = rParts[d] || {};
+        if ((p.k || 0) > (r.k || 0) || (p.a || 0) > (r.a || 0) || (p.m || 0) > (r.m || 0)) localHasMore = true;
+      }
+      const rMission = row.value?.mission || {};
+      for (const d of Object.keys(rMission)) state.activity.mission[d] = true;
+      for (const d of Object.keys(state.activity.mission)) if (!rMission[d]) localHasMore = true;
       if (row.value?.backfilled) state.activity.backfilled = true;
       state.activityDirty = localHasMore || (state.activity.backfilled && !row.value?.backfilled);
       seenActivity = true;
+    }
+    if (row.key === 'badges') {
+      // Meilensteine werden zusammengeführt: früheres Datum, größerer Zähler
+      seenBadges = true;
+      const got = row.value?.got || {};
+      const cnt = row.value?.cnt || {};
+      let localHasMore = false;
+      for (const [id, d] of Object.entries(got)) {
+        if (!state.badges.got[id] || d < state.badges.got[id]) state.badges.got[id] = d;
+      }
+      for (const [id, d] of Object.entries(state.badges.got)) if (got[id] !== d) localHasMore = true;
+      for (const [k, n] of Object.entries(cnt)) state.badges.cnt[k] = Math.max(state.badges.cnt[k] || 0, n);
+      for (const [k, n] of Object.entries(state.badges.cnt)) if (n !== cnt[k]) localHasMore = true;
+      state.badgesDirty = localHasMore;
+      if (localHasMore) state.badges.upd = Date.now();
     }
     if (row.key === 'checks') {
       seenChecks = true;
@@ -302,6 +382,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   if (!seenDrill && state.drill.upd) state.drillDirty = true;
   if (!seenPrep && state.prep.upd) state.prepDirty = true;
   if (!seenChecks && state.checks.upd) state.checksDirty = true;
+  if (!seenBadges && state.badges.upd) state.badgesDirty = true;
   if (!seenActivity && (Object.keys(state.activity.days).length || state.activity.backfilled)) state.activityDirty = true;
   save();
 }
@@ -329,7 +410,14 @@ export function outbox() {
     userData.push({ key: 'prep', value: { status: state.prep.status, notes: state.prep.notes }, updated_at: new Date(state.prep.upd).toISOString() });
   }
   if (state.activityDirty) {
-    userData.push({ key: 'activity', value: { days: { ...state.activity.days }, backfilled: state.activity.backfilled }, updated_at: new Date().toISOString() });
+    userData.push({
+      key: 'activity',
+      value: { days: { ...state.activity.days }, parts: JSON.parse(JSON.stringify(state.activity.parts)), mission: { ...state.activity.mission }, backfilled: state.activity.backfilled },
+      updated_at: new Date().toISOString(),
+    });
+  }
+  if (state.badgesDirty) {
+    userData.push({ key: 'badges', value: { got: { ...state.badges.got }, cnt: { ...state.badges.cnt } }, updated_at: new Date(state.badges.upd || Date.now()).toISOString() });
   }
   return { cards, reviews: [...state.pending], userData };
 }
@@ -348,10 +436,13 @@ export function markPushed(box) {
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
     if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
     if (row.key === 'prep' && new Date(state.prep.upd).toISOString() === row.updated_at) state.prepDirty = false;
+    if (row.key === 'badges' && JSON.stringify({ got: state.badges.got, cnt: state.badges.cnt }) === JSON.stringify(row.value)) state.badgesDirty = false;
     if (row.key === 'checks' && new Date(state.checks.upd).toISOString() === row.updated_at) state.checksDirty = false;
     if (row.key === 'activity') {
       const sent = row.value.days;
-      const changed = Object.entries(state.activity.days).some(([d, n]) => n !== sent[d]);
+      const changed = Object.entries(state.activity.days).some(([d, n]) => n !== sent[d])
+        || JSON.stringify(state.activity.parts) !== JSON.stringify(row.value.parts)
+        || Object.keys(state.activity.mission).length !== Object.keys(row.value.mission).length;
       if (!changed) state.activityDirty = false;
     }
   }
@@ -359,5 +450,5 @@ export function markPushed(box) {
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty || state.badgesDirty;
 }
