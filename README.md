@@ -2,7 +2,8 @@
 
 Lern-App für **Mathematik (RE), Wintersemester 26/27**. Vorlesungen und Übungen werden Woche für Woche eingepflegt und als Karten und Aufgaben abgefragt. Ein Wiederholungsplan sorgt dafür, dass alles bis zur Klausur regelmäßig wiederkommt.
 
-- **Heute:** Lernserie mit Tagesziel, Abfrage aus fälligen Wiederholungen und neuen Karten, Fortschritt pro Einheit, Schwachstellen, Schnelltraining „Methode erkennen“.
+- **Heute:** Lernserie mit Wochenleiste, Wochenziel und Joker (ein verpasster Tag pro Woche wird überbrückt). Dazu die **Tagesmission** für etwa 10 Minuten: 8 Karten wiederholen, eine Aufgabe des Tages auf Papier rechnen, 5× Methode erkennen. Außerdem Klausurreife auf einen Blick, Abfrage aller fälligen Karten, Schwachstellen.
+- **Fortschritt:** Klausurreife gesamt und pro Thema (mit „Üben“ pro Thema), Prognose bis zur Klausur, Lernaktivität der letzten 12 Wochen, Stand jeder Einheit, Trefferquote bei „Methode erkennen“, eigene Lösungen und Meilensteine.
 - **Inhalte:** alle Karten nach Woche, Vorlesung und Übung. Jede Einheit lässt sich frei üben.
 - **Aufgaben** mit gestuften Tipps, kommentiertem Lösungsweg, typischen Fehlern und dem Rezept für den Aufgabentyp.
 - **Übung:** Besprechungs- und Präsenzaufgaben mit Lösungsweg zum Aufdecken. Vorher markierst du pro Aufgabe „Selbst gelöst“, „Mit Hilfe“ oder „Offen“ und notierst Fragen. In der Übung zeigt der Live-Modus eine Aufgabe nach der anderen mit großen Knöpfen, und der Bildschirm bleibt an.

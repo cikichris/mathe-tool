@@ -134,15 +134,19 @@ Dateien den Wochen zu. `node tools/check-content.mjs` prüft alle Dateien.
 ## 7. Stand
 
 Umgesetzt: Abfrage mit Wiederholungsplan, Inhaltsübersicht mit freiem Üben,
-Übungsvorbereitung (Lösungswege zum Aufdecken), Herkunft („Woher?“) bei jedem
-Rechenschritt, Schnelltraining „Methode erkennen“, Lernserie mit Tagesziel, Abgleich mit den Lösungen
-aus der Übung (über Fotos im Chat), Formelblatt mit Druckansicht,
-Einstellungen, Login und Abgleich mit Supabase.
+Übungsvorbereitung und Live-Modus, Präsenzaufgaben, Herkunft („Woher?“) bei
+jedem Rechenschritt, Schnelltraining „Methode erkennen“, eigene Lösung mit
+Foto prüfen, Abgleich mit den Lösungen aus der Übung (über Fotos im Chat),
+Formelblatt mit Druckansicht, Einstellungen, Login und Abgleich mit Supabase.
+
+Dranbleiben: Tagesmission (8 Karten, Aufgabe des Tages, 5× Methode erkennen),
+Lernserie mit Wochenziel und einem Joker pro Woche, Klausurreife gesamt und
+pro Klausurthema (content/themen.js), Fortschrittsseite mit Aktivität der
+letzten 12 Wochen und Meilensteinen.
 
 Vorgemerkt:
-- **Präsenzaufgaben** (nächster Schritt, Material kommt gesammelt)
 - **Klausur-Simulation:** gemischte Aufgaben mit Zeitlimit, nur mit dem
-  Formelblatt; am besten auf Basis von Altklausuren, sobald vorhanden
-- Aufgaben mit neuen Zahlen bei jeder Wiederholung, Ergebnis eintippen
-- Fehlertagebuch bei „Nochmal“, Lernplan bis Februar, Versionsanzeige,
-  Kartendetails (zuletzt dran, nächste Fälligkeit)
+  Formelblatt; am besten auf Basis von Altklausuren, sobald vorhanden.
+  Bis dahin ginge eine Mini-Klausur aus den vorhandenen Aufgaben.
+- **Aufgaben mit neuen Zahlen** und **Fehlertagebuch** (aus „Fehlt / falsch“
+  beim Prüfen der eigenen Lösung)

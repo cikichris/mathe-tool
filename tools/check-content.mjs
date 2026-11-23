@@ -5,10 +5,12 @@
 import { createRequire } from 'node:module';
 import { WOCHEN } from '../content/index.js';
 import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
+import { THEMEN, OHNE_THEMA } from '../content/themen.js';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
 
+const THEMA_BEKANNT = new Set([...THEMEN.flatMap((t) => t.themen), ...OHNE_THEMA]);
 const TYPEN = ['definition', 'satz', 'formel', 'verfahren', 'verstaendnis', 'aufgabe'];
 const HERKUNFT = ['offiziell', 'vorlesung', 'claude', 'zusatz'];
 const errors = [];
@@ -58,6 +60,7 @@ for (const woche of WOCHEN) {
       if (!card.id?.startsWith(`${unit.id}-`)) errors.push(`${w}: id muss mit "${unit.id}-" beginnen`);
       if (!TYPEN.includes(card.typ)) errors.push(`${w}: unbekannter typ "${card.typ}"`);
       for (const key of ['thema', 'quelle', 'frage']) if (!card[key]) errors.push(`${w}: Feld "${key}" fehlt`);
+      if (card.thema && !THEMA_BEKANNT.has(card.thema)) errors.push(`${w}: Thema "${card.thema}" fehlt in content/themen.js`);
       if (card.herkunft && !HERKUNFT.includes(card.herkunft)) errors.push(`${w}: unbekannte herkunft`);
       for (const [i, f] of (card.rueckmeldung || []).entries()) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(f.datum || '')) errors.push(`${w}: rueckmeldung[${i}].datum fehlt oder falsches Format`);

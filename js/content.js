@@ -1,5 +1,6 @@
 // Bereitet die Inhalte aus content/ für die App auf.
 import { WOCHEN } from '../content/index.js';
+import { THEMEN, OHNE_THEMA } from '../content/themen.js';
 
 export const TYP_LABEL = {
   definition: 'Definition',
@@ -65,3 +66,15 @@ export function nextUebung(today) {
   const open = uebungen.filter((u) => (u.besprechung || []).some((d) => d >= today));
   return open[0] || uebungen[uebungen.length - 1] || null;
 }
+
+/** Klausurthemen mit ihren Karten (Karten bekommen card.klausurthema). */
+export const themen = THEMEN.map((t) => ({ ...t, karten: [] }));
+const themaZu = new Map();
+for (const t of themen) for (const name of t.themen) themaZu.set(name, t);
+for (const card of cards) {
+  const t = themaZu.get(card.thema);
+  card.klausurthema = t ? t.id : null;
+  if (t) t.karten.push(card);
+  else if (!OHNE_THEMA.includes(card.thema)) console.warn('Thema ohne Klausurthema:', card.thema);
+}
+export const themaById = new Map(themen.map((t) => [t.id, t]));
