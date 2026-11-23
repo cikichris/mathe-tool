@@ -78,11 +78,11 @@ export async function signOut() {
   if (client) await client.auth.signOut();
 }
 
-async function fetchAll(table) {
+async function fetchAll(table, columns = '*') {
   const rows = [];
   const page = 1000;
   for (let from = 0; ; from += page) {
-    const { data, error } = await client.from(table).select('*').range(from, from + page - 1);
+    const { data, error } = await client.from(table).select(columns).range(from, from + page - 1);
     if (error) throw error;
     rows.push(...data);
     if (data.length < page) break;
@@ -100,6 +100,11 @@ export function syncNow() {
     try {
       const [cards, userData] = await Promise.all([fetchAll('card_state'), fetchAll('user_data')]);
       store.applyRemote({ cards, userData });
+      if (!store.activityBackfilled()) {
+        // Einmalig: Lerntage aus dem bisherigen Verlauf übernehmen
+        const history = await fetchAll('reviews', 'reviewed_at');
+        store.backfillActivity(history.map((r) => r.reviewed_at));
+      }
 
       const box = store.outbox();
       const uid = user.id;

@@ -135,7 +135,7 @@ Dateien den Wochen zu. `node tools/check-content.mjs` prüft alle Dateien.
 
 Umgesetzt: Abfrage mit Wiederholungsplan, Inhaltsübersicht mit freiem Üben,
 Übungsvorbereitung (Lösungswege zum Aufdecken), Herkunft („Woher?“) bei jedem
-Rechenschritt, Schnelltraining „Methode erkennen“, Abgleich mit den Lösungen
+Rechenschritt, Schnelltraining „Methode erkennen“, Lernserie mit Tagesziel, Abgleich mit den Lösungen
 aus der Übung (über Fotos im Chat), Formelblatt mit Druckansicht,
 Einstellungen, Login und Abgleich mit Supabase.
 

@@ -15,12 +15,14 @@ function blank() {
     cards: {},          // card_id -> Zustand (siehe srs.js) + upd (Zeitstempel in ms)
     dirty: {},          // card_id -> true: noch nicht in der Datenbank
     pending: [],        // Bewertungen, die noch hochgeladen werden müssen
-    settings: { examDate: '', newPerDay: 15, upd: 0 },
+    settings: { examDate: '', newPerDay: 15, dailyGoal: 10, upd: 0 },
     settingsDirty: false,
     sheet: { sel: {}, upd: 0 },   // Formelblatt: item_id -> true/false
     sheetDirty: false,
     drill: { stats: {}, upd: 0 }, // Methode erkennen: aufgabe_id -> [richtig, falsch, letztes Datum]
     drillDirty: false,
+    activity: { days: {}, backfilled: false }, // Lernserie: Datum -> Anzahl beantworteter Fragen
+    activityDirty: false,
   };
 }
 
@@ -39,6 +41,8 @@ export function load() {
     const raw = globalThis.localStorage.getItem(KEY);
     if (raw) state = { ...blank(), ...JSON.parse(raw) };
     state.drill ||= blank().drill;
+    state.activity ||= blank().activity;
+    state.settings = { ...blank().settings, ...state.settings };
   } catch {
     memoryOnly = true; // privater Modus o. Ä.: Stand gilt nur für diese Sitzung
   }
@@ -73,12 +77,39 @@ export function maxInterval(today = dateStr()) {
   return Math.max(1, Math.min(MAX_INTERVAL, Math.floor(left / 2)));
 }
 
+function countActivity(today) {
+  state.activity.days[today] = (state.activity.days[today] || 0) + 1;
+  state.activityDirty = true;
+}
+
+export const activityDays = () => state.activity.days;
+export const activityBackfilled = () => state.activity.backfilled;
+
+/**
+ * Übernimmt Tage aus dem Verlauf der Datenbank (Tabelle reviews), einmalig
+ * nach dem ersten Abgleich. Pro Tag gilt der größere Wert.
+ */
+export function backfillActivity(timestamps) {
+  const perDay = {};
+  for (const ts of timestamps) {
+    const d = dateStr(new Date(ts));
+    perDay[d] = (perDay[d] || 0) + 1;
+  }
+  for (const [d, n] of Object.entries(perDay)) {
+    if (n > (state.activity.days[d] || 0)) state.activity.days[d] = n;
+  }
+  state.activity.backfilled = true;
+  state.activityDirty = true;
+  save();
+}
+
 export function rate(cardId, rating, mode = 'heute', today = dateStr()) {
   const next = schedule(state.cards[cardId], rating, today, maxInterval(today));
   next.upd = Date.now();
   state.cards[cardId] = next;
   state.dirty[cardId] = true;
   state.pending.push({ id: uuid(), card_id: cardId, rating, mode, reviewed_at: new Date().toISOString() });
+  countActivity(today);
   save();
   return next;
 }
@@ -108,6 +139,7 @@ export function recordDrill(id, correct, today = dateStr()) {
   state.drill.stats[id] = correct ? [right + 1, wrong, today] : [right, wrong + 1, today];
   state.drill.upd = Date.now();
   state.drillDirty = true;
+  countActivity(today);
   save();
 }
 
@@ -172,6 +204,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   let seenSettings = false;
   let seenSheet = false;
   let seenDrill = false;
+  let seenActivity = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -180,6 +213,20 @@ export function applyRemote({ cards = [], userData = [] }) {
         state.settings = { ...blank().settings, ...row.value, upd: remoteUpd };
         state.settingsDirty = false;
       } else if (state.settings.upd > remoteUpd) state.settingsDirty = true;
+    }
+    if (row.key === 'activity') {
+      // Tage werden zusammengeführt (pro Tag der größere Wert), nicht ersetzt
+      const remote = row.value?.days || {};
+      let localHasMore = false;
+      for (const [d, n] of Object.entries(remote)) {
+        if (n > (state.activity.days[d] || 0)) state.activity.days[d] = n;
+      }
+      for (const [d, n] of Object.entries(state.activity.days)) {
+        if (n > (remote[d] || 0)) localHasMore = true;
+      }
+      if (row.value?.backfilled) state.activity.backfilled = true;
+      state.activityDirty = localHasMore || (state.activity.backfilled && !row.value?.backfilled);
+      seenActivity = true;
     }
     if (row.key === 'drill') {
       seenDrill = true;
@@ -199,6 +246,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   if (!seenSettings && state.settings.upd) state.settingsDirty = true;
   if (!seenSheet && state.sheet.upd) state.sheetDirty = true;
   if (!seenDrill && state.drill.upd) state.drillDirty = true;
+  if (!seenActivity && (Object.keys(state.activity.days).length || state.activity.backfilled)) state.activityDirty = true;
   save();
 }
 
@@ -218,6 +266,9 @@ export function outbox() {
   if (state.drillDirty) {
     userData.push({ key: 'drill', value: { stats: state.drill.stats }, updated_at: new Date(state.drill.upd).toISOString() });
   }
+  if (state.activityDirty) {
+    userData.push({ key: 'activity', value: { days: { ...state.activity.days }, backfilled: state.activity.backfilled }, updated_at: new Date().toISOString() });
+  }
   return { cards, reviews: [...state.pending], userData };
 }
 
@@ -234,10 +285,15 @@ export function markPushed(box) {
     if (row.key === 'settings' && new Date(state.settings.upd).toISOString() === row.updated_at) state.settingsDirty = false;
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
     if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
+    if (row.key === 'activity') {
+      const sent = row.value.days;
+      const changed = Object.entries(state.activity.days).some(([d, n]) => n !== sent[d]);
+      if (!changed) state.activityDirty = false;
+    }
   }
   save();
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty;
 }

@@ -23,6 +23,7 @@ import {
 } from './srs.js';
 import { COURSE_NAME } from '../config.js';
 import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
+import { computeStreak, lastDays, DEFAULT_GOAL } from './streak.js';
 
 const view = document.getElementById('view');
 let session = null;
@@ -289,6 +290,7 @@ function renderSession() {
     show(`<section class="summary">
       <h1>Geschafft</h1>
       <p class="summary-main">${plural(session.done, 'Karte', 'Karten')} bearbeitet${session.again ? `, ${session.again}-mal „Nochmal“` : ''}.</p>
+      ${streakNote()}
       <p class="muted">Jede Karte kommt automatisch wieder, bevor du sie vergisst.</p>
       <div class="action-row">
         ${more ? `<button class="btn" data-action="start-today">Weitere ${plural(more, 'Karte', 'Karten')} für heute</button>` : ''}
@@ -331,6 +333,57 @@ function rateCurrent(rating) {
 // ---------------------------------------------------------------------
 //  Heute
 // ---------------------------------------------------------------------
+
+// ---------------------------------------------------------------------
+//  Lernserie
+// ---------------------------------------------------------------------
+
+function streakNow() {
+  return computeStreak(store.activityDays(), dateStr(), store.settings().dailyGoal || DEFAULT_GOAL);
+}
+
+function streakPanel() {
+  const st = streakNow();
+  const left = Math.max(0, st.goal - st.todayCount);
+  const pct = Math.min(100, Math.round((st.todayCount / st.goal) * 100));
+  let headline;
+  let sub;
+  if (st.todayDone) {
+    headline = `${plural(st.current, 'Tag', 'Tage')} in Folge`;
+    sub = 'Tagesziel geschafft. Morgen geht es weiter.';
+  } else if (st.current > 0) {
+    headline = `${plural(st.current, 'Tag', 'Tage')} in Folge`;
+    sub = `Heute noch ${plural(left, 'Frage', 'Fragen')}, dann sind es ${st.current + 1}.`;
+  } else {
+    headline = 'Starte heute eine Serie';
+    sub = `Beantworte ${plural(st.goal, 'Frage', 'Fragen')}, dann zählt der Tag.`;
+  }
+  const today = dateStr();
+  const dots = lastDays(store.activityDays(), today, 14, st.goal).map((x) => {
+    const cls = x.done ? 'is-done' : x.count > 0 ? 'is-some' : '';
+    const label = `${shortDate(x.d)}: ${x.count} beantwortet`;
+    return `<span class="streak-dot ${cls} ${x.d === today ? 'is-today' : ''}" title="${label}" aria-label="${label}"></span>`;
+  }).join('');
+  return `<div class="panel streak ${st.todayDone ? 'is-done' : ''}">
+    <div class="streak-top">
+      <span class="streak-flame" aria-hidden="true">${st.current > 0 || st.todayDone ? '🔥' : '○'}</span>
+      <div class="streak-text"><strong>${headline}</strong><span class="muted small">${sub}</span></div>
+      ${st.best > 1 ? `<span class="streak-best" title="Längste Serie">Rekord ${st.best}</span>` : ''}
+    </div>
+    <div class="streak-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${st.goal}" aria-valuenow="${Math.min(st.todayCount, st.goal)}" aria-label="Tagesziel">
+      <span style="width:${pct}%"></span>
+    </div>
+    <div class="streak-meta"><span>Heute ${Math.min(st.todayCount, 999)} / ${st.goal}</span><span class="streak-dots" aria-label="Letzte 14 Tage">${dots}</span></div>
+  </div>`;
+}
+
+/** Kurze Rückmeldung zur Serie am Ende einer Abfrage oder Trainingsrunde. */
+function streakNote() {
+  const st = streakNow();
+  if (st.todayDone) return `<p class="streak-note is-done">🔥 Tagesziel geschafft · ${plural(st.current, 'Tag', 'Tage')} in Folge</p>`;
+  const left = st.goal - st.todayCount;
+  return `<p class="streak-note">Noch ${plural(left, 'Frage', 'Fragen')} bis zum Tagesziel${st.current ? ` (Serie: ${plural(st.current, 'Tag', 'Tage')})` : ''}.</p>`;
+}
 
 function examChip() {
   const exam = store.settings().examDate;
@@ -390,6 +443,7 @@ function renderHome() {
       <h1>Heute</h1>
       ${examChip()}
     </header>
+    ${streakPanel()}
     <div class="panel today">${today}</div>
     ${prepTeaser()}
     ${drillTeaser()}
@@ -686,6 +740,7 @@ function renderDrill() {
     show(`<section class="summary drill-summary">
       <h1>${drill.right} von ${drill.ids.length} richtig</h1>
       <p class="summary-main">in ${time} Minuten</p>
+      ${streakNote()}
       ${missed.length ? `<div class="panel drill-missed"><h2>Noch einmal anschauen</h2><ul class="weak-list">${missed.map((a) => `<li>${fmt(a.a)}<small>${fmt(METHODEN[a.m])}</small></li>`).join('')}</ul></div>`
         : '<p class="muted">Alles richtig erkannt.</p>'}
       <div class="action-row">
@@ -810,6 +865,10 @@ function renderSettings() {
         <input type="number" inputmode="numeric" min="0" max="100" data-setting="newPerDay" value="${Number(s.newPerDay)}">
       </label>
       <p class="muted small">Fällige Wiederholungen kommen immer alle dran. Das Limit gilt nur für Karten, die du zum ersten Mal siehst.</p>
+      <label>Tagesziel für die Lernserie
+        <input type="number" inputmode="numeric" min="1" max="200" data-setting="dailyGoal" value="${Number(s.dailyGoal || DEFAULT_GOAL)}">
+      </label>
+      <p class="muted small">So viele Fragen am Tag, damit der Tag für die Serie zählt. Es zählen alle beantworteten Karten (Abfrage, Einheiten, Schwachstellen) und Antworten bei „Methode erkennen“. Eine Änderung gilt auch für die zurückliegenden Tage.</p>
     </div>
 
     <h2>Anmeldung und Abgleich</h2>
@@ -957,6 +1016,11 @@ document.addEventListener('change', (event) => {
     renderSheet();
   }
   if (el.dataset.setting === 'examDate') store.setSettings({ examDate: el.value });
+  if (el.dataset.setting === 'dailyGoal') {
+    const n = Math.max(1, Math.min(200, Math.round(Number(el.value) || DEFAULT_GOAL)));
+    el.value = n;
+    store.setSettings({ dailyGoal: n });
+  }
   if (el.dataset.setting === 'newPerDay') {
     const n = Math.max(0, Math.min(100, Math.round(Number(el.value) || 0)));
     el.value = n;
