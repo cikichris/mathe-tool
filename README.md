@@ -9,7 +9,7 @@ Lern-App für **Mathematik (RE), Wintersemester 26/27**. Vorlesungen und Übunge
 - **Übung:** Besprechungs- und Präsenzaufgaben mit Lösungsweg zum Aufdecken. Vorher markierst du pro Aufgabe „Selbst gelöst“, „Mit Hilfe“ oder „Offen“ und notierst Fragen. In der Übung zeigt der Live-Modus eine Aufgabe nach der anderen mit großen Knöpfen, und der Bildschirm bleibt an.
 - **Eigene Lösung prüfen:** bei jeder Rechenaufgabe. Du rechnest auf Papier, fotografierst deine Lösung und gehst den Lösungsweg Schritt für Schritt durch: „Wie hier“, „Anders, aber richtig“ oder „Fehlt / falsch“. Danach gibt es eine Auswertung, einen Vorschlag für den Wiederholungsplan und die Möglichkeit, die Fotos für eine genauere Prüfung an Claude zu teilen. Die Fotos bleiben auf dem Gerät, die Ergebnisse werden mitgespeichert.
 - **Formelblatt:** Sammlung für das erlaubte A4-Blatt, mit Druckansicht.
-- **Einstellungen:** Klausurtermin, neue Karten pro Tag, Login.
+- **Optionen:** Konto erstellen, anmelden, Passwort zurücksetzen; Klausurtermin, neue Karten pro Tag, Tages- und Wochenziel.
 
 Das Konzept steht in [KONZEPT.md](KONZEPT.md).
 
@@ -52,9 +52,14 @@ Ohne Supabase-Zugangsdaten in `config.js` speichert die App den Lernstand nur im
 
 1. Im Supabase-Projekt den **SQL Editor** öffnen, den kompletten Inhalt von [`supabase/schema.sql`](supabase/schema.sql) einfügen und **Run** klicken. Unten muss „Success. No rows returned“ stehen.
 2. Unter **Authentication → Users → Add user → Create new user** einen Nutzer mit E-Mail und Passwort anlegen und dabei **Auto Confirm User** anhaken.
-3. Unter **Authentication → Sign In / Providers** bei „Email“ die Option **Allow new users to sign up** ausschalten. Dann kann sich niemand sonst registrieren.
-4. Unter **Project Settings → API Keys** die **Project URL** und den **Publishable Key** kopieren und in [`config.js`](config.js) eintragen.
-5. In der App unter **Einstellungen** mit E-Mail und Passwort anmelden.
+3. Damit sich andere selbst registrieren können: Unter **Authentication → Sign In / Providers** bei „Email“ die Option **Allow new users to sign up** eingeschaltet lassen (und **Confirm email** an). Wer das nicht möchte, schaltet sie aus; dann klappt nur noch die Anmeldung mit angelegten Nutzern.
+4. Unter **Authentication → URL Configuration** als **Site URL** `https://cikichris.github.io/mathe-tool/` eintragen und unter **Redirect URLs** `https://cikichris.github.io/mathe-tool/**` hinzufügen. Dorthin führen die Links in den Bestätigungs- und Passwort-E-Mails.
+5. Unter **Project Settings → API Keys** die **Project URL** und den **Publishable Key** kopieren und in [`config.js`](config.js) eintragen.
+6. In der App unter **Optionen** anmelden oder ein Konto erstellen.
+
+Jedes Konto sieht nur den eigenen Lernstand (Row Level Security). Meldet sich auf einem Gerät ein anderes Konto an, wird der Lernstand des vorherigen Kontos dort entfernt; er bleibt in dessen Konto gespeichert. Was ohne Login gelernt wurde, wird beim ersten Anmelden ins Konto übernommen.
+
+Hinweis: Der eingebaute E-Mail-Versand von Supabase schickt nur wenige E-Mails pro Stunde. Für ein paar Freunde reicht das.
 
 Die Datei `supabase/schema.sql` kann beliebig oft ausgeführt werden. Vorhandene Daten bleiben erhalten.
 

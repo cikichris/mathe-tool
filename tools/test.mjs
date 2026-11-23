@@ -295,3 +295,18 @@ test('Klausurreife: neu 0, sicher 1, Aufgaben zählen doppelt', async () => {
   assert.ok(!done.has('serie-7') && !done.has('thema-x') && !done.has('karten-alle'));
   assert.equal(new Set(ms.map((m) => m.id)).size, ms.length, 'IDs eindeutig');
 });
+
+test('Konto wechseln: fremder Lernstand wird verworfen, Lernen ohne Login übernommen', () => {
+  store.resetAll();
+  store.rate('a', GOOD, 'heute', '2026-11-23');   // ohne Login gelernt
+  assert.equal(store.adoptOwner('nutzer-1'), false);
+  assert.ok(store.cardState('a'), 'Stand ohne Login wird ins Konto übernommen');
+  assert.equal(store.adoptOwner('nutzer-1'), false); // gleiches Konto: nichts passiert
+  store.resetAll();
+  assert.equal(store.owner(), 'nutzer-1', 'Zurücksetzen behält das Konto');
+  store.rate('b', GOOD, 'heute', '2026-11-23');
+  assert.equal(store.adoptOwner('nutzer-2'), true);
+  assert.equal(store.cardState('b'), undefined, 'Stand von Konto 1 ist weg');
+  assert.equal(store.owner(), 'nutzer-2');
+  assert.equal(store.hasUnsynced(), false);
+});

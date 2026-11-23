@@ -674,6 +674,7 @@ function renderHome() {
         <ul class="weak-list">${weak.map((c) => `<li><span class="badge badge-${c.typ}">${TYP_LABEL[c.typ]}</span> ${fmt(c.frage.split('\n')[0])}<small>${store.cardState(c.id).lapses}-mal nicht gewusst</small></li>`).join('')}</ul>
         <button class="btn btn-wide" data-action="start-weak">Schwachstellen üben</button>
       </div>` : ''}
+    ${sync.status().ready && !sync.status().signedIn ? '<p class="muted small home-account"><a href="#/einstellungen">Konto erstellen oder anmelden</a>, damit dein Lernstand gesichert und auf allen Geräten gleich ist.</p>' : ''}
     ${store.isMemoryOnly() ? '<p class="warn">Dieser Browser erlaubt kein Speichern (privater Modus?). Dein Lernstand geht beim Schließen verloren.</p>' : ''}
   </section>`);
 }
@@ -1532,26 +1533,67 @@ function renderSheet() {
 //  Einstellungen
 // ---------------------------------------------------------------------
 
+let authMode = 'login'; // 'login' | 'signup' | 'reset'
+
+function authNotice(s) {
+  return s.notice ? `<p class="auth-notice" role="status">${esc(s.notice)}</p>` : '';
+}
+
 function syncBlock() {
   const s = sync.status();
   if (!s.configured) {
     return `<p>Noch nicht eingerichtet. Dein Lernstand wird im Moment nur in diesem Browser gespeichert.</p>
       <p class="muted small">Sobald die Supabase-Zugangsdaten in <code>config.js</code> stehen, kannst du dich hier anmelden. Der Lernstand ist dann auf allen Geräten gleich.</p>`;
   }
+  const err = `<p class="form-error" id="login-error" role="alert">${esc(s.lastError)}</p>`;
+  if (!s.signedIn && authMode === 'signup') {
+    return `${authNotice(s)}<form class="login" data-form="signup">
+        <p class="form-title">Neues Konto</p>
+        <label>E-Mail<input type="email" name="email" autocomplete="email" required></label>
+        <label>Passwort <span class="muted small">(mindestens 8 Zeichen)</span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Passwort wiederholen<input type="password" name="password2" autocomplete="new-password" minlength="8" required></label>
+        <button class="btn btn-primary" type="submit">Konto erstellen</button>
+        ${err}
+      </form>
+      <p class="muted small">Du bekommst eine E-Mail mit einem Link zur Bestätigung. Danach meldest du dich hier an. Dein Lernstand ist nur für dich sichtbar. Was du schon ohne Konto gelernt hast, wird übernommen.</p>
+      <button class="link-btn" data-action="auth-mode" data-mode="login">Ich habe schon ein Konto</button>`;
+  }
+  if (!s.signedIn && authMode === 'reset') {
+    return `${authNotice(s)}<form class="login" data-form="reset">
+        <p class="form-title">Passwort vergessen</p>
+        <label>E-Mail<input type="email" name="email" autocomplete="email" required></label>
+        <button class="btn btn-primary" type="submit">Link zum Zurücksetzen schicken</button>
+        ${err}
+      </form>
+      <button class="link-btn" data-action="auth-mode" data-mode="login">Zurück zur Anmeldung</button>`;
+  }
   if (!s.signedIn) {
-    return `<form class="login" data-form="login">
+    return `${authNotice(s)}<form class="login" data-form="login">
         <label>E-Mail<input type="email" name="email" autocomplete="username" required></label>
         <label>Passwort<input type="password" name="password" autocomplete="current-password" required></label>
         <button class="btn btn-primary" type="submit">Anmelden</button>
-        <p class="form-error" id="login-error" role="alert">${esc(s.lastError)}</p>
+        ${err}
       </form>
-      <p class="muted small">Ohne Anmeldung bleibt dein Lernstand nur in diesem Browser.</p>`;
+      <div class="auth-links">
+        <button class="link-btn" data-action="auth-mode" data-mode="signup">Noch kein Konto? Registrieren</button>
+        <button class="link-btn" data-action="auth-mode" data-mode="reset">Passwort vergessen?</button>
+      </div>
+      <p class="muted small">Ohne Anmeldung bleibt dein Lernstand nur in diesem Browser. Mit Konto ist er gesichert und auf allen Geräten gleich.</p>`;
+  }
+  if (s.recovery) {
+    return `${authNotice(s)}<form class="login" data-form="newpw">
+        <p class="form-title">Neues Passwort für ${esc(s.email)}</p>
+        <label>Neues Passwort <span class="muted small">(mindestens 8 Zeichen)</span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Wiederholen<input type="password" name="password2" autocomplete="new-password" minlength="8" required></label>
+        <button class="btn btn-primary" type="submit">Passwort speichern</button>
+        ${err}
+      </form>`;
   }
   const state = s.phase === 'syncing' ? 'Abgleich läuft …'
     : s.phase === 'error' ? `Fehler: ${esc(s.lastError)}`
       : s.lastSync ? `Zuletzt abgeglichen um ${s.lastSync.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`
         : 'Angemeldet';
-  return `<p>Angemeldet als <strong>${esc(s.email)}</strong></p>
+  return `${authNotice(s)}<p>Angemeldet als <strong>${esc(s.email)}</strong></p>
     <p class="muted small ${s.phase === 'error' ? 'form-error' : ''}">${state}${store.hasUnsynced() && s.phase !== 'syncing' ? ' · Es gibt noch nicht hochgeladene Änderungen.' : ''}</p>
     <div class="action-row">
       <button class="btn" data-action="sync-now">Jetzt abgleichen</button>
@@ -1566,6 +1608,9 @@ function renderSettings() {
       <p class="eyebrow">${esc(COURSE_NAME)}</p>
       <h1>Einstellungen</h1>
     </header>
+
+    <h2>Konto und Abgleich</h2>
+    <div class="panel" id="sync-block">${syncBlock()}</div>
 
     <h2>Klausur und Lernpensum</h2>
     <div class="panel form">
@@ -1586,9 +1631,6 @@ function renderSettings() {
       <p class="muted small">Pro Woche überbrückt ein Joker automatisch einen verpassten Tag, damit die Serie nicht reißt.</p>
     </div>
 
-    <h2>Anmeldung und Abgleich</h2>
-    <div class="panel" id="sync-block">${syncBlock()}</div>
-
     <h2>Daten</h2>
     <div class="panel">
       <p class="muted small">Setzt alle Karten auf „neu“ zurück und löscht Einstellungen und Formelblatt-Auswahl${sync.status().signedIn ? ', auch in der Datenbank' : ''}.</p>
@@ -1606,7 +1648,16 @@ function currentRoute() {
   return { name, arg };
 }
 
+/** Kommt die Seite aus einem Link in einer Bestätigungs- oder Passwort-E-Mail? */
+const AUTH_HASH = /(^|[#&])(access_token|error_description|error_code)=/;
+
 function route() {
+  if (AUTH_HASH.test(location.hash)) {
+    // Beim Start liest Supabase den Link gleich aus (siehe unten). Läuft die App schon, bringt er nichts mehr.
+    if (sync.status().ready) history.replaceState(null, '', `${location.pathname}#/einstellungen`);
+    renderSettings();
+    return;
+  }
   const { name, arg } = currentRoute();
   document.body.classList.remove('in-session', 'in-live');
   if (name !== 'live') keepScreenOn(false);
@@ -1773,6 +1824,13 @@ const actions = {
   'live-go': (el) => { live.i = Number(el.dataset.i); renderLive(live.unit); window.scrollTo(0, 0); },
   print: () => window.print(),
   'sync-now': () => sync.syncNow(),
+  'auth-mode': (el) => {
+    authMode = el.dataset.mode;
+    sync.setNotice('');
+    const block = document.getElementById('sync-block');
+    if (block) block.innerHTML = syncBlock();
+    block?.querySelector('input')?.focus();
+  },
   'sign-out': () => sync.signOut(),
   reset: async () => {
     if (!window.confirm('Wirklich den gesamten Lernstand löschen? Das lässt sich nicht rückgängig machen.')) return;
@@ -1843,17 +1901,41 @@ document.addEventListener('focusout', (event) => {
 
 document.addEventListener('submit', async (event) => {
   const form = event.target;
-  if (form.dataset.form !== 'login') return;
+  const kind = form.dataset.form;
+  if (!['login', 'signup', 'reset', 'newpw'].includes(kind)) return;
   event.preventDefault();
-  const button = form.querySelector('button');
+  const button = form.querySelector('button[type=submit]');
   const error = form.querySelector('#login-error');
-  button.disabled = true;
+  const fail = (msg) => { error.textContent = msg; button.disabled = false; };
   error.textContent = '';
+  if ((kind === 'signup' || kind === 'newpw') && form.password.value !== form.password2.value) {
+    fail('Die beiden Passwörter stimmen nicht überein.');
+    return;
+  }
+  button.disabled = true;
   try {
-    await sync.signIn(form.email.value.trim(), form.password.value);
+    if (kind === 'login') {
+      await sync.signIn(form.email.value.trim(), form.password.value);
+    } else if (kind === 'signup') {
+      const email = form.email.value.trim();
+      const res = await sync.signUp(email, form.password.value);
+      authMode = 'login';
+      if (res === 'vorhanden') sync.setNotice('Für diese E-Mail gibt es schon ein Konto. Melde dich an oder setze das Passwort zurück.');
+      else if (res === 'bestaetigen') sync.setNotice(`Fast geschafft: Wir haben eine E-Mail an ${email} geschickt. Klick auf den Link darin, dann kannst du dich hier anmelden. Schau auch im Spam-Ordner nach.`);
+      else sync.setNotice('Konto erstellt. Du bist angemeldet.');
+    } else if (kind === 'reset') {
+      const email = form.email.value.trim();
+      await sync.sendReset(email);
+      authMode = 'login';
+      sync.setNotice(`Falls es ein Konto für ${email} gibt, ist jetzt eine E-Mail mit einem Link unterwegs. Darüber kannst du ein neues Passwort setzen.`);
+    } else if (kind === 'newpw') {
+      await sync.setPassword(form.password.value);
+      sync.setNotice('Neues Passwort gespeichert.');
+    }
+    const block = document.getElementById('sync-block');
+    if (block) block.innerHTML = syncBlock();
   } catch (err) {
-    error.textContent = err.message;
-    button.disabled = false;
+    fail(err.message);
   }
 });
 
@@ -1890,20 +1972,38 @@ document.addEventListener('visibilitychange', () => {
 
 // Wenn der Abgleich neue Daten bringt, die sichtbare Übersicht auffrischen
 let lastPhase = 'idle';
+let wasReady = false;
 sync.onStatus(() => {
   const { name } = currentRoute();
   const s = sync.status();
   if (name === 'einstellungen') {
     const block = document.getElementById('sync-block');
     const typing = block?.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
-    if (block && !(typing && !s.signedIn)) block.innerHTML = syncBlock();
+    if (block && !typing) block.innerHTML = syncBlock();
   }
   if (lastPhase === 'syncing' && s.phase === 'idle' && (name === '' || name === 'inhalte' || name === 'formelblatt' || name === 'fortschritt')) route();
+  else if (!wasReady && s.ready && !s.signedIn && name === '') route(); // Hinweis „Konto erstellen“ zeigen
   lastPhase = s.phase;
+  wasReady = s.ready;
 });
 
 store.load();
+const authLink = AUTH_HASH.test(location.hash) ? new URLSearchParams(location.hash.slice(1)) : null;
 route();
 store.onChange(watchProgress);
 watchProgress();
-sync.init();
+sync.init().then(() => {
+  if (!authLink) return;
+  const type = authLink.get('type');
+  if (authLink.get('error_description')) {
+    sync.setNotice('', /expired|invalid/i.test(authLink.get('error_description'))
+      ? 'Der Link ist abgelaufen oder wurde schon benutzt. Melde dich an oder fordere einen neuen an.'
+      : authLink.get('error_description'));
+  } else if (type === 'recovery') {
+    sync.setNotice('Setz jetzt dein neues Passwort.');
+  } else if (type === 'signup' || type === 'email') {
+    sync.setNotice('E-Mail bestätigt. Willkommen! Dein Lernstand wird ab jetzt gesichert.');
+  }
+  history.replaceState(null, '', `${location.pathname}#/einstellungen`);
+  route();
+});
