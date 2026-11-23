@@ -512,6 +512,59 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; bo
 .prep-teaser:hover { border-color: var(--accent); }
 .prep-teaser-go { font-size: 1.6rem; line-height: 1; color: var(--accent); }
 
+/* ---------- Übungsvorbereitung ---------- */
+
+.prep-head .btn-wide { margin-top: 0.8rem; }
+.prep-progress-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.2rem 0.8rem; margin-bottom: 0.35rem; }
+.prep-progress .streak-bar span { background: var(--accent); }
+.prep-self { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed var(--line); }
+.prep-self-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.45rem; }
+.prep-status-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.prep-status {
+  --tone: var(--muted);
+  padding: 0.4rem 0.75rem; min-height: 38px; border-radius: 999px; font: inherit; font-size: 0.85rem; font-weight: 600;
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent); background: var(--surface); color: var(--tone); cursor: pointer;
+}
+.prep-status-selbst { --tone: var(--good); }
+.prep-status-hilfe { --tone: var(--hard); }
+.prep-status-offen { --tone: var(--again); }
+.prep-status.is-on { background: var(--tone); border-color: var(--tone); color: var(--surface); }
+.prep-note-label { display: grid; gap: 0.3rem; margin-top: 0.7rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.prep-note {
+  width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink);
+  font: inherit; font-size: 0.95rem; resize: vertical; min-height: 2.8rem;
+}
+
+/* ---------- Live-Modus ---------- */
+
+.live .session-bar { margin-bottom: 0.6rem; }
+.live-title { flex: 1; text-align: right; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.live-dots { display: flex; gap: 0.35rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 0.4rem; scrollbar-width: none; }
+.live-dot {
+  flex: none; min-width: 2.6rem; height: 2.2rem; padding: 0 0.5rem; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.live-dot.is-selbst { border-color: var(--good); color: var(--good); }
+.live-dot.is-hilfe { border-color: var(--hard); color: var(--hard); }
+.live-dot.is-offen { border-color: var(--again); color: var(--again); }
+.live-dot.is-current { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.live .card { padding-bottom: 1.4rem; }
+.live .frage { font-size: 1.15rem; }
+.live .step-text { font-size: 1.08rem; }
+.live-mine { margin-top: 0.9rem; padding: 0.7rem 0.9rem; border-radius: 10px; background: var(--surface-2); }
+.live-mine p { margin-top: 0.4rem; }
+.live-bar {
+  position: sticky; bottom: 0; margin: 0.8rem -1rem 0; padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+  display: grid; gap: 0.5rem;
+}
+.live-extra { display: flex; gap: 0.4rem; }
+.live-extra .btn { flex: 1; min-height: 42px; padding: 0.4rem 0.6rem; font-size: 0.9rem; }
+.live-main { width: 100%; min-height: 58px; font-size: 1.1rem; }
+.live-nav { display: flex; justify-content: space-between; }
+.live-nav .btn { min-height: 40px; }
+.in-live .view { padding-bottom: 0; }
+
 /* ---------- Methode erkennen ---------- */
 
 .chip-row button.chip { font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--muted); }

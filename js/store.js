@@ -23,6 +23,8 @@ function blank() {
     drillDirty: false,
     activity: { days: {}, backfilled: false }, // Lernserie: Datum -> Anzahl beantworteter Fragen
     activityDirty: false,
+    prep: { status: {}, notes: {}, upd: 0 }, // Übungsvorbereitung: card_id -> Status bzw. Frage
+    prepDirty: false,
   };
 }
 
@@ -42,6 +44,7 @@ export function load() {
     if (raw) state = { ...blank(), ...JSON.parse(raw) };
     state.drill ||= blank().drill;
     state.activity ||= blank().activity;
+    state.prep ||= blank().prep;
     state.settings = { ...blank().settings, ...state.settings };
   } catch {
     memoryOnly = true; // privater Modus o. Ä.: Stand gilt nur für diese Sitzung
@@ -132,6 +135,26 @@ export function setSheetSelected(itemId, on) {
   save();
 }
 
+export const prepStatus = (id) => state.prep.status[id] || '';
+export const prepNote = (id) => state.prep.notes[id] || '';
+
+export function setPrepStatus(id, status) {
+  if (status) state.prep.status[id] = status;
+  else delete state.prep.status[id];
+  state.prep.upd = Date.now();
+  state.prepDirty = true;
+  save();
+}
+
+export function setPrepNote(id, text) {
+  const t = String(text || '').slice(0, 2000);
+  if (t.trim()) state.prep.notes[id] = t;
+  else delete state.prep.notes[id];
+  state.prep.upd = Date.now();
+  state.prepDirty = true;
+  save();
+}
+
 export const drillStats = () => state.drill.stats;
 
 export function recordDrill(id, correct, today = dateStr()) {
@@ -205,6 +228,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   let seenSheet = false;
   let seenDrill = false;
   let seenActivity = false;
+  let seenPrep = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -228,6 +252,13 @@ export function applyRemote({ cards = [], userData = [] }) {
       state.activityDirty = localHasMore || (state.activity.backfilled && !row.value?.backfilled);
       seenActivity = true;
     }
+    if (row.key === 'prep') {
+      seenPrep = true;
+      if (remoteUpd > state.prep.upd) {
+        state.prep = { status: row.value?.status || {}, notes: row.value?.notes || {}, upd: remoteUpd };
+        state.prepDirty = false;
+      } else if (state.prep.upd > remoteUpd) state.prepDirty = true;
+    }
     if (row.key === 'drill') {
       seenDrill = true;
       if (remoteUpd > state.drill.upd) {
@@ -246,6 +277,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   if (!seenSettings && state.settings.upd) state.settingsDirty = true;
   if (!seenSheet && state.sheet.upd) state.sheetDirty = true;
   if (!seenDrill && state.drill.upd) state.drillDirty = true;
+  if (!seenPrep && state.prep.upd) state.prepDirty = true;
   if (!seenActivity && (Object.keys(state.activity.days).length || state.activity.backfilled)) state.activityDirty = true;
   save();
 }
@@ -266,6 +298,9 @@ export function outbox() {
   if (state.drillDirty) {
     userData.push({ key: 'drill', value: { stats: state.drill.stats }, updated_at: new Date(state.drill.upd).toISOString() });
   }
+  if (state.prepDirty) {
+    userData.push({ key: 'prep', value: { status: state.prep.status, notes: state.prep.notes }, updated_at: new Date(state.prep.upd).toISOString() });
+  }
   if (state.activityDirty) {
     userData.push({ key: 'activity', value: { days: { ...state.activity.days }, backfilled: state.activity.backfilled }, updated_at: new Date().toISOString() });
   }
@@ -285,6 +320,7 @@ export function markPushed(box) {
     if (row.key === 'settings' && new Date(state.settings.upd).toISOString() === row.updated_at) state.settingsDirty = false;
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
     if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
+    if (row.key === 'prep' && new Date(state.prep.upd).toISOString() === row.updated_at) state.prepDirty = false;
     if (row.key === 'activity') {
       const sent = row.value.days;
       const changed = Object.entries(state.activity.days).some(([d, n]) => n !== sent[d]);
@@ -295,5 +331,5 @@ export function markPushed(box) {
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty;
 }

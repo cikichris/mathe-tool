@@ -531,6 +531,26 @@ function prepButton(action, id, label, cls = '') {
   return `<button class="btn ${cls}" data-action="${action}" data-card="${id}">${label}</button>`;
 }
 
+const PREP_STATUS = {
+  selbst: { label: 'Selbst gelöst', short: 'Gelöst' },
+  hilfe: { label: 'Mit Hilfe', short: 'Mit Hilfe' },
+  offen: { label: 'Offen / Frage', short: 'Offen' },
+};
+
+/** Status und Frage für die Übung, unter jeder Aufgabe. */
+function prepSelfHtml(card) {
+  const st = store.prepStatus(card.id);
+  const chips = Object.entries(PREP_STATUS).map(([key, v]) => `<button class="prep-status prep-status-${key} ${st === key ? 'is-on' : ''}"
+      data-action="prep-status" data-card="${card.id}" data-status="${key}" aria-pressed="${st === key}">${v.label}</button>`).join('');
+  return `<div class="prep-self">
+    <p class="prep-self-label">Deine Vorbereitung</p>
+    <div class="prep-status-row">${chips}</div>
+    <label class="prep-note-label">Frage für die Übung
+      <textarea class="prep-note" rows="2" data-note="${card.id}" placeholder="z. B. Warum wird hier durch 2 geteilt?">${esc(store.prepNote(card.id))}</textarea>
+    </label>
+  </div>`;
+}
+
 function prepCardHtml(card) {
   const ui = prepState(card.id);
   let tag = card.herkunft ? `<span class="prep-tag prep-tag-${card.herkunft}">${HERKUNFT_KURZ[card.herkunft]}</span>` : '';
@@ -547,7 +567,7 @@ function prepCardHtml(card) {
     } else {
       html += `<div class="prep-actions">${prepButton('prep-answer', card.id, 'Antwort zeigen', 'btn-primary')}</div>`;
     }
-    return `${html}</article>`;
+    return `${html}${prepSelfHtml(card)}</article>`;
   }
 
   const tips = card.tipps || [];
@@ -566,7 +586,12 @@ function prepCardHtml(card) {
     buttons.push(prepButton('prep-all', card.id, 'Alles zeigen', 'btn-quiet'));
   }
   if (ui.tips || ui.steps || ui.result) buttons.push(prepButton('prep-reset', card.id, 'Zuklappen', 'btn-quiet'));
-  return `${html}<div class="prep-actions">${buttons.join('')}</div></article>`;
+  return `${html}<div class="prep-actions">${buttons.join('')}</div>${prepSelfHtml(card)}</article>`;
+}
+
+function prepChanged(id, scrollToEnd) {
+  if (currentRoute().name === 'live') liveRefresh(scrollToEnd);
+  else rerenderPrepCard(id);
 }
 
 function rerenderPrepCard(id) {
@@ -582,6 +607,13 @@ function prepDates(unit) {
   return (unit.besprechung || []).map((d) => (d === today ? `${shortDate(d)} (heute)` : shortDate(d))).join(' · ');
 }
 
+function prepProgress(unit) {
+  const tasks = unit.karten.filter((c) => c.teil);
+  const counts = { selbst: 0, hilfe: 0, offen: 0 };
+  for (const c of tasks) { const st = store.prepStatus(c.id); if (st) counts[st] += 1; }
+  return { total: tasks.length, done: counts.selbst + counts.hilfe + counts.offen, ...counts };
+}
+
 function abgleichSummary(unit) {
   const tasks = unit.karten.filter((c) => c.teil);
   const done = tasks.filter((c) => c.abgleich).length;
@@ -589,6 +621,17 @@ function abgleichSummary(unit) {
   return done
     ? `<p class="muted small">${done} von ${tasks.length} Aufgaben mit der Übung abgeglichen</p>`
     : '<p class="muted small">Noch nicht mit der Übung abgeglichen. Schick Claude nach der Übung Fotos von Musterlösung und deiner Lösung.</p>';
+}
+
+function prepHeadStats(unit) {
+  const pr = prepProgress(unit);
+  if (!pr.total) return '';
+  const pct = Math.round((pr.done / pr.total) * 100);
+  return `<div class="prep-progress">
+    <div class="prep-progress-top"><strong>${pr.done} von ${pr.total} vorbereitet</strong>
+      <span class="muted small">${pr.selbst} gelöst · ${pr.hilfe} mit Hilfe · ${pr.offen} offen</span></div>
+    <div class="streak-bar"><span style="width:${pct}%"></span></div>
+  </div>`;
 }
 
 function renderPrep(id) {
@@ -616,17 +659,21 @@ function renderPrep(id) {
     <header class="page-head">
       <p class="eyebrow">${esc(COURSE_NAME)}</p>
       <h1>Übung</h1>
-      <p class="muted">Lösungswege für die Aufgaben aus der Übung. Rechne mit und deck nur so viel auf, wie du brauchst.</p>
+      <p class="muted">Vorher: jede Aufgabe selbst rechnen, dann markieren, wie es lief, und Fragen notieren. In der Übung: Live-Modus öffnen und Schritt für Schritt mitgehen.</p>
     </header>
     <nav class="chip-row" aria-label="Übungsblatt wählen">${chips}</nav>
     <div class="panel prep-head">
       <p class="prep-title">Übungsblatt ${unit.nummer}: ${esc(unit.titel)}</p>
       ${unit.besprechung?.length ? `<p class="muted small">Besprechung ${prepDates(unit)}</p>` : ''}
+      ${prepHeadStats(unit)}
       ${abgleichSummary(unit)}
+      <a class="btn btn-primary btn-wide" href="#/live/${unit.id}">Live-Modus für die Übung</a>
+      <p class="muted small">Eine Aufgabe nach der anderen, große Knöpfe, der Bildschirm bleibt an. Gedacht zum Mitrechnen während der Besprechung.</p>
       <a class="small" href="#/inhalte/${unit.id}">Alle Karten dieses Blatts</a>
     </div>
     ${sections}
   </section>`);
+  view.querySelector('.chip-row .is-current')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
 function prepTeaser() {
@@ -635,12 +682,118 @@ function prepTeaser() {
   if (!unit?.besprechung?.length) return '';
   const date = unit.besprechung.find((d) => d >= today);
   if (!date || daysBetween(today, date) > 7) return '';
-  const n = unit.karten.filter((c) => c.teil).length;
-  const when = date === today ? 'heute' : shortDate(date);
-  return `<a class="panel prep-teaser" href="#/uebung/${unit.id}">
-    <span><strong>Übung ${when}</strong><span class="muted"> · Blatt ${unit.nummer}, ${plural(n, 'Aufgabe', 'Aufgaben')} mit Lösungsweg</span></span>
+  const pr = prepProgress(unit);
+  const diff = daysBetween(today, date);
+  const when = diff === 0 ? 'heute' : diff === 1 ? 'morgen' : shortDate(date);
+  return `<a class="panel prep-teaser" href="#/${diff === 0 ? 'live' : 'uebung'}/${unit.id}">
+    <span><strong>Übung ${when}</strong><span class="muted"> · Blatt ${unit.nummer}, ${pr.done} von ${plural(pr.total, 'Aufgabe', 'Aufgaben')} vorbereitet${diff === 0 ? ' · Live-Modus öffnen' : ''}</span></span>
     <span class="prep-teaser-go" aria-hidden="true">›</span>
   </a>`;
+}
+
+// ---------------------------------------------------------------------
+//  Live-Modus: eine Aufgabe nach der anderen, während der Übung
+// ---------------------------------------------------------------------
+
+const live = { unit: null, i: 0, lock: null };
+
+function liveTasks(unit) {
+  return [...unit.karten.filter((c) => c.teil === 'besprechung'), ...unit.karten.filter((c) => c.teil === 'praesenz')];
+}
+
+async function keepScreenOn(on) {
+  try {
+    if (on && !live.lock && navigator.wakeLock && document.visibilityState === 'visible') {
+      live.lock = await navigator.wakeLock.request('screen');
+      live.lock.addEventListener?.('release', () => { live.lock = null; });
+    } else if (!on && live.lock) {
+      await live.lock.release();
+      live.lock = null;
+    }
+  } catch { /* nicht unterstützt oder abgelehnt: dann eben ohne */ }
+}
+
+function renderLive(id) {
+  const unit = unitById.get(id) || nextUebung(dateStr());
+  const tasks = unit ? liveTasks(unit) : [];
+  if (!tasks.length) { location.replace(`#/uebung/${unit?.id || ''}`); return; }
+  if (live.unit !== unit.id) { live.unit = unit.id; live.i = 0; }
+  live.i = Math.max(0, Math.min(live.i, tasks.length - 1));
+  document.body.classList.add('in-session', 'in-live');
+  keepScreenOn(true);
+
+  const card = tasks[live.i];
+  const ui = prepState(card.id);
+  const total = (card.schritte || []).length;
+  const tips = card.tipps || [];
+  const isMc = card.typ === 'verstaendnis';
+  const done = isMc ? ui.answer : ui.steps >= total;
+  const st = store.prepStatus(card.id);
+  const note = store.prepNote(card.id);
+  const teilLabel = card.teil === 'praesenz' ? 'Präsenzaufgabe' : 'Aufgabe';
+
+  let body = `<div class="frage">${fmt(card.frage)}</div>`;
+  if (card.plot) body += plotSVG(card.plot);
+  if (st || note) {
+    body += `<div class="live-mine">${st ? `<span class="prep-status prep-status-${st} is-on">${PREP_STATUS[st].label}</span>` : ''}
+      ${note ? `<p><span class="merke-label">Deine Frage</span>${esc(note)}</p>` : ''}</div>`;
+  }
+  if (isMc) {
+    if (ui.answer) body += `<div class="antwort"><p class="prep-answer">${fmt(card.optionen[card.richtig])}</p>${fmt(card.erklaerung)}</div>${abgleichHtml(card)}`;
+  } else {
+    body += tipsHtml(card, ui.tips);
+    if (ui.steps > 0) body += `<div class="solution"><h3>Lösungsweg · Schritt ${Math.min(ui.steps, total)} von ${total}</h3>${stepsHtml(card, ui.steps)}</div>`;
+    if (done) body += solutionEndHtml(card);
+    else if (ui.result) body += resultHtml(card);
+  }
+
+  let main;
+  if (isMc) {
+    main = ui.answer ? '' : prepButton('prep-answer', card.id, 'Antwort zeigen', 'btn-primary live-main');
+  } else if (!done) {
+    main = prepButton('prep-step', card.id, ui.steps === 0 ? 'Ersten Schritt zeigen' : `Nächster Schritt (${ui.steps + 1}/${total})`, 'btn-primary live-main');
+  } else {
+    main = live.i + 1 < tasks.length ? '<button class="btn btn-primary live-main" data-action="live-next">Nächste Aufgabe ›</button>' : '';
+  }
+  const extra = [];
+  if (!isMc && !done && ui.tips < tips.length) extra.push(prepButton('prep-tip', card.id, `Tipp ${ui.tips + 1}/${tips.length}`));
+  if (!isMc && !done && !ui.result) extra.push(prepButton('prep-result', card.id, 'Ergebnis'));
+  if (!isMc && !done) extra.push(prepButton('prep-all', card.id, 'Alles'));
+  if (ui.tips || ui.steps || ui.result || ui.answer) extra.push(prepButton('prep-reset', card.id, 'Zurücksetzen', 'btn-quiet'));
+
+  const dots = tasks.map((t, k) => `<button class="live-dot ${k === live.i ? 'is-current' : ''} ${store.prepStatus(t.id) ? `is-${store.prepStatus(t.id)}` : ''}"
+      data-action="live-go" data-i="${k}" aria-label="${esc(t.teil === 'praesenz' ? 'Präsenzaufgabe' : 'Aufgabe')} ${esc(t.nr || '')}">${esc(t.nr || k + 1)}</button>`).join('');
+
+  show(`<section class="live">
+    <div class="session-bar">
+      <a class="session-close" href="#/uebung/${unit.id}">Beenden</a>
+      <span class="live-title">Blatt ${unit.nummer} · ${live.i + 1} / ${tasks.length}</span>
+    </div>
+    <nav class="live-dots" aria-label="Aufgabe wählen">${dots}</nav>
+    <article class="card prep-card card-${card.typ}" id="prep-${card.id}">
+      <header class="card-head"><span class="prep-nr">${teilLabel} ${esc(card.nr || '')}</span>
+        ${card.herkunft ? `<span class="prep-tag prep-tag-${card.herkunft}">${HERKUNFT_KURZ[card.herkunft]}</span>` : ''}
+        <span class="card-quelle">${esc(card.thema)}</span></header>
+      ${body}
+    </article>
+    <div class="live-bar">
+      ${extra.length ? `<div class="live-extra">${extra.join('')}</div>` : ''}
+      ${main}
+      <div class="live-nav">
+        <button class="btn btn-quiet" data-action="live-prev" ${live.i === 0 ? 'disabled' : ''}>‹ Vorige</button>
+        <button class="btn btn-quiet" data-action="live-next" ${live.i + 1 >= tasks.length ? 'disabled' : ''}>Nächste ›</button>
+      </div>
+    </div>
+  </section>`);
+}
+
+function liveRefresh(scrollToEnd) {
+  const y = window.scrollY;
+  renderLive(live.unit);
+  if (scrollToEnd) {
+    const steps = view.querySelectorAll('.steps li, .result, .tip');
+    steps[steps.length - 1]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  } else window.scrollTo(0, y);
 }
 
 // ---------------------------------------------------------------------
@@ -893,7 +1046,8 @@ function currentRoute() {
 
 function route() {
   const { name, arg } = currentRoute();
-  document.body.classList.remove('in-session');
+  document.body.classList.remove('in-session', 'in-live');
+  if (name !== 'live') keepScreenOn(false);
   document.querySelectorAll('.tabs a').forEach((a) => {
     const target = a.getAttribute('href').replace(/^#\/?/, '');
     a.classList.toggle('is-active', target === name);
@@ -910,6 +1064,7 @@ function route() {
   if (name === 'inhalte' && arg) renderUnit(arg);
   else if (name === 'inhalte') renderContents();
   else if (name === 'uebung') renderPrep(arg);
+  else if (name === 'live') renderLive(arg);
   else if (name === 'methoden') renderDrill();
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
@@ -972,20 +1127,31 @@ const actions = {
     window.scrollTo(0, 0);
   },
   'drill-exit': () => { drill = null; renderDrillStart(); window.scrollTo(0, 0); },
-  'prep-tip': (el) => { prepState(el.dataset.card).tips += 1; rerenderPrepCard(el.dataset.card); },
-  'prep-step': (el) => { prepState(el.dataset.card).steps += 1; rerenderPrepCard(el.dataset.card); },
-  'prep-result': (el) => { prepState(el.dataset.card).result = true; rerenderPrepCard(el.dataset.card); },
+  'prep-tip': (el) => { prepState(el.dataset.card).tips += 1; prepChanged(el.dataset.card, true); },
+  'prep-step': (el) => { prepState(el.dataset.card).steps += 1; prepChanged(el.dataset.card, true); },
+  'prep-result': (el) => { prepState(el.dataset.card).result = true; prepChanged(el.dataset.card, true); },
   'prep-all': (el) => {
     const card = cardById.get(el.dataset.card);
     Object.assign(prepState(card.id), { steps: card.schritte.length, result: true });
-    rerenderPrepCard(card.id);
+    prepChanged(card.id, false);
   },
-  'prep-answer': (el) => { prepState(el.dataset.card).answer = true; rerenderPrepCard(el.dataset.card); },
+  'prep-answer': (el) => { prepState(el.dataset.card).answer = true; prepChanged(el.dataset.card, true); },
   'prep-reset': (el) => {
     prepUi.delete(el.dataset.card);
-    rerenderPrepCard(el.dataset.card);
+    prepChanged(el.dataset.card, false);
     document.getElementById(`prep-${el.dataset.card}`)?.scrollIntoView({ block: 'nearest' });
   },
+  'prep-status': (el) => {
+    const id = el.dataset.card;
+    store.setPrepStatus(id, store.prepStatus(id) === el.dataset.status ? '' : el.dataset.status);
+    rerenderPrepCard(id);
+    const unit = cardById.get(id)?.unit;
+    const head = document.querySelector('.prep-progress');
+    if (head && unit) { head.outerHTML = prepHeadStats(unit); }
+  },
+  'live-next': () => { live.i += 1; renderLive(live.unit); window.scrollTo(0, 0); },
+  'live-prev': () => { live.i -= 1; renderLive(live.unit); window.scrollTo(0, 0); },
+  'live-go': (el) => { live.i = Number(el.dataset.i); renderLive(live.unit); window.scrollTo(0, 0); },
   print: () => window.print(),
   'sync-now': () => sync.syncNow(),
   'sign-out': () => sync.signOut(),
@@ -1028,6 +1194,20 @@ document.addEventListener('change', (event) => {
   }
 });
 
+let noteTimer = null;
+document.addEventListener('input', (event) => {
+  const el = event.target;
+  if (!el.dataset?.note) return;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => store.setPrepNote(el.dataset.note, el.value), 600);
+});
+document.addEventListener('focusout', (event) => {
+  const el = event.target;
+  if (!el.dataset?.note) return;
+  clearTimeout(noteTimer);
+  if (store.prepNote(el.dataset.note) !== el.value) store.setPrepNote(el.dataset.note, el.value);
+});
+
 document.addEventListener('submit', async (event) => {
   const form = event.target;
   if (form.dataset.form !== 'login') return;
@@ -1046,6 +1226,12 @@ document.addEventListener('submit', async (event) => {
 
 // Tastatur: Leertaste deckt auf, 1 bis 4 bewerten
 document.addEventListener('keydown', (event) => {
+  if (currentRoute().name === 'live' && !event.target.closest('input, textarea, select')) {
+    const map = { ' ': '.live-main', Enter: '.live-main', ArrowRight: '[data-action="live-next"]', ArrowLeft: '[data-action="live-prev"]' };
+    const btn = map[event.key] && view.querySelector(map[event.key]);
+    if (btn && !btn.disabled) { event.preventDefault(); btn.click(); }
+    return;
+  }
   if (currentRoute().name === 'methoden' && drill && !event.target.closest('input, textarea, select')) {
     const sel = /^[1-4]$/.test(event.key) ? `[data-action="drill-pick"]:nth-child(${event.key})`
       : (event.key === 'Enter' || event.key === ' ') ? '[data-action="drill-next"]' : null;
@@ -1065,6 +1251,9 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('hashchange', route);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && currentRoute().name === 'live') keepScreenOn(true);
+});
 
 // Wenn der Abgleich neue Daten bringt, die sichtbare Übersicht auffrischen
 let lastPhase = 'idle';

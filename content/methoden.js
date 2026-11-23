@@ -45,6 +45,13 @@ export const METHODEN = {
   'sym-allg': '$f(-x)$ allgemein berechnen und vergleichen',
   'sym-gegen': 'Ein Gegenbeispiel genügt',
   'sym-d': 'Definitionsbereich nicht symmetrisch: weder noch',
+  // Ableitungen
+  'abl-potenz': 'Als Potenz $x^k$ schreiben, dann Potenzregel',
+  'abl-summe': 'Summand für Summand, Faktoren bleiben stehen',
+  'abl-trig': '$(\\sin x)\' = \\cos x$ bzw. $(\\cos x)\' = -\\sin x$',
+  'abl-exp': '$(a^x)\' = \\ln(a) \\cdot a^x$',
+  'abl-tangente': 'Tangentengleichung $f(x_0) + f\'(x_0)(x - x_0)$',
+  'abl-sekante': 'Sekantensteigung $\\frac{f(x_2) - f(x_1)}{x_2 - x_1}$',
   // Dreiecke
   'dr-sin': 'Sinus: Gegenkathete durch Hypotenuse',
   'dr-cos': 'Cosinus: Ankathete durch Hypotenuse',
@@ -60,6 +67,7 @@ export const GRUPPEN = [
   { id: 'trig', titel: 'Winkelfunktionen', methoden: ['sin-formel', 'cos-formel', 'tan-formel', 'trig-keine', 'trig-ablesen'] },
   { id: 'geraden', titel: 'Geraden', methoden: ['zweipunkte', 'parallel', 'gleichsetzen', 'ablesen', 'wert'] },
   { id: 'symmetrie', titel: 'Symmetrie', methoden: ['sym-allg', 'sym-gegen', 'sym-d'] },
+  { id: 'ableitung', titel: 'Ableitungen', methoden: ['abl-potenz', 'abl-summe', 'abl-trig', 'abl-exp', 'abl-tangente', 'abl-sekante'] },
   { id: 'dreieck', titel: 'Dreiecke', methoden: ['dr-sin', 'dr-cos', 'dr-tan', 'dr-pyth', 'dr-winkel'] },
 ];
 
@@ -197,6 +205,39 @@ export const AUFGABEN = [
     w: r`$f(1) \approx 0{,}14$, $f(-1) \approx 7{,}39$: weder gleich noch entgegengesetzt. Ein Gegenbeispiel genügt.`, q: r`VL 6, Folie 6` },
   { id: 'm-s06', g: 'symmetrie', a: r`Untersuche $f(x) = \ln(x) - \frac{1}{2}\ln(3x - 2)$ auf Symmetrie.`, m: 'sym-d',
     w: r`$D = \left(\frac{2}{3};\infty\right)$ liegt nur rechts: weder gerade noch ungerade.`, q: r`Übung 4, Aufgabe 2 b` },
+
+  { id: 'm-t11', g: 'trig', a: r`Löse $\cos(x) = -\frac{1}{\sqrt{2}}$.`, m: 'cos-formel',
+    w: r`Cosinus gleich einer Zahl in $[-1; 1]$: $x = \pm\arccos(a) + k \cdot 2\pi$.`, q: r`VL 11, Folie 4; Übung 6, Aufgabe 1 a` },
+  { id: 'm-t12', g: 'trig', a: r`Löse $\tan\left(\pi x - \frac{\pi}{2}\right) = \sqrt{3}$.`, m: 'tan-formel',
+    w: r`Tangens: nur eine Familie, $\arctan(a) + k\pi$, dann nach $x$ auflösen.`, q: r`VL 11, Folie 6; Übung 6, Aufgabe 6 c` },
+  { id: 'm-t13', g: 'trig', a: r`Bestimme die Nullstellen von $f(x) = \cos(x) - 2$.`, m: 'trig-keine',
+    w: r`$\cos(x) = 2$ ist unmöglich, der Wertebereich ist $[-3; -1]$.`, q: r`Übung 6, Aufgabe 1 b` },
+  { id: 'm-t14', g: 'trig', a: r`Löse $(\sin x)^2 + \frac{1}{2}\sin x = 0$.`, m: 'sin-formel', auch: [],
+    f: 'Was passiert nach dem Ausklammern von $\sin x$?',
+    w: r`Nach Ausklammern und Nullprodukt bleiben $\sin x = 0$ und $\sin x = -\frac{1}{2}$. Beide löst man mit der Sinus-Formel.`, q: r`Übung 6, Aufgabe 6 d` },
+
+  // ---------------- Ableitungen ----------------
+  { id: 'm-a01', g: 'ableitung', a: r`Leite $f(x) = \dfrac{1}{x^3}$ ab.`, m: 'abl-potenz',
+    w: r`Bruch mit $x$ im Nenner: erst $x^{-3}$ schreiben, dann $-3x^{-4}$.`, q: r`VL 12, Folien 11 und 12` },
+  { id: 'm-a02', g: 'ableitung', a: r`Leite $f(x) = \sqrt[5]{x}$ ab.`, m: 'abl-potenz',
+    w: r`Wurzel als Potenz: $x^{\frac{1}{5}}$, dann Potenzregel.`, q: r`VL 12, Folie 12` },
+  { id: 'm-a03', g: 'ableitung', a: r`Leite $f(x) = 6x^2 + 2x - 1$ ab.`, m: 'abl-summe',
+    w: r`Summe aus Potenzen mit Vorfaktoren: jeden Summanden einzeln, die $-1$ fällt weg.`, q: r`VL 12, Folien 13 bis 15` },
+  { id: 'm-a04', g: 'ableitung', a: r`Leite $f(x) = 2\sin(x) + \pi$ ab.`, m: 'abl-trig',
+    w: r`$(\sin x)' = \cos x$, Faktor 2 bleibt, $\pi$ ist eine Konstante.`, q: r`VL 12, Folie 16; Übung 6, Aufgabe 7 b` },
+  { id: 'm-a05', g: 'ableitung', a: r`Leite $f(x) = 2^x + 3^x$ ab.`, m: 'abl-exp',
+    w: r`$x$ steht im Exponenten: Exponentialregel, nicht Potenzregel.`, q: r`VL 12, Folie 17; Übung 6, Aufgabe 7 d` },
+  { id: 'm-a06', g: 'ableitung', a: r`Gesucht ist die Gerade, die $f(x) = x^2$ im Punkt $(1; 1)$ berührt.`, m: 'abl-tangente',
+    w: r`„Berührt“ heißt Tangente: $f(1)$ und $f'(1)$ in $T(x) = f(x_0) + f'(x_0)(x - x_0)$ einsetzen.`, q: r`VL 12, Folien 5 und 6` },
+  { id: 'm-a07', g: 'ableitung', a: r`Wie stark steigt $f(x) = x^2$ im Durchschnitt zwischen $x = 1$ und $x = 3$?`, m: 'abl-sekante',
+    w: r`„Im Durchschnitt zwischen zwei Stellen“ heißt Sekante, nicht Ableitung.`, q: r`VL 11, Folie 13; VL 12, Folie 7` },
+  { id: 'm-a08', g: 'ableitung', a: r`Leite $f(x) = e^x$ ab.`, m: 'abl-exp',
+    w: r`Spezialfall $a = e$: $\ln(e) = 1$, also $(e^x)' = e^x$.`, q: r`VL 12, Folie 17` },
+  { id: 'm-a09', g: 'ableitung', a: r`Leite $s(t) = \frac{1}{2}at^2$ nach $t$ ab ($a$ konstant).`, m: 'abl-summe', auch: ['abl-potenz'],
+    w: r`$\frac{1}{2}a$ ist ein konstanter Faktor, er bleibt stehen. $t^2$ wird zu $2t$.`, q: r`Übung 6, Aufgabe 7 c` },
+  { id: 'm-a10', g: 'ableitung', a: r`Was ist die Momentangeschwindigkeit zum Zeitpunkt $t = 1$, wenn $s(t) = t^2$ der Weg ist?`, m: 'abl-potenz',
+    f: 'Was rechnest du?',
+    w: r`Momentan heißt lokal: $s'(t) = 2t$, also $s'(1) = 2$. Die Durchschnittsgeschwindigkeit wäre eine Sekantensteigung.`, q: r`VL 12, Folie 8` },
 
   // ---------------- Dreiecke ----------------
   { id: 'm-d01', g: 'dreieck', a: r`Dreieck mit $\gamma = 90^\circ$, $\alpha = 40^\circ$, $c = 5$ cm. Gesucht: $a$.`, m: 'dr-sin',
