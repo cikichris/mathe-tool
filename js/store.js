@@ -25,6 +25,8 @@ function blank() {
     activityDirty: false,
     prep: { status: {}, notes: {}, upd: 0 }, // Übungsvorbereitung: card_id -> Status bzw. Frage
     prepDirty: false,
+    checks: { list: {}, upd: 0 }, // Eigene Lösung geprüft: card_id -> [{ d, ok, of, result }]
+    checksDirty: false,
   };
 }
 
@@ -45,6 +47,7 @@ export function load() {
     state.drill ||= blank().drill;
     state.activity ||= blank().activity;
     state.prep ||= blank().prep;
+    state.checks ||= blank().checks;
     state.settings = { ...blank().settings, ...state.settings };
   } catch {
     memoryOnly = true; // privater Modus o. Ä.: Stand gilt nur für diese Sitzung
@@ -155,6 +158,18 @@ export function setPrepNote(id, text) {
   save();
 }
 
+export const checksFor = (id) => state.checks.list[id] || [];
+export const allChecks = () => state.checks.list;
+
+/** Ergebnis einer Selbstkontrolle speichern (die letzten 10 je Aufgabe). */
+export function addCheck(id, entry) {
+  const list = [...(state.checks.list[id] || []), entry].slice(-10);
+  state.checks.list[id] = list;
+  state.checks.upd = Date.now();
+  state.checksDirty = true;
+  save();
+}
+
 export const drillStats = () => state.drill.stats;
 
 export function recordDrill(id, correct, today = dateStr()) {
@@ -229,6 +244,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   let seenDrill = false;
   let seenActivity = false;
   let seenPrep = false;
+  let seenChecks = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -251,6 +267,13 @@ export function applyRemote({ cards = [], userData = [] }) {
       if (row.value?.backfilled) state.activity.backfilled = true;
       state.activityDirty = localHasMore || (state.activity.backfilled && !row.value?.backfilled);
       seenActivity = true;
+    }
+    if (row.key === 'checks') {
+      seenChecks = true;
+      if (remoteUpd > state.checks.upd) {
+        state.checks = { list: row.value?.list || {}, upd: remoteUpd };
+        state.checksDirty = false;
+      } else if (state.checks.upd > remoteUpd) state.checksDirty = true;
     }
     if (row.key === 'prep') {
       seenPrep = true;
@@ -278,6 +301,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   if (!seenSheet && state.sheet.upd) state.sheetDirty = true;
   if (!seenDrill && state.drill.upd) state.drillDirty = true;
   if (!seenPrep && state.prep.upd) state.prepDirty = true;
+  if (!seenChecks && state.checks.upd) state.checksDirty = true;
   if (!seenActivity && (Object.keys(state.activity.days).length || state.activity.backfilled)) state.activityDirty = true;
   save();
 }
@@ -297,6 +321,9 @@ export function outbox() {
   }
   if (state.drillDirty) {
     userData.push({ key: 'drill', value: { stats: state.drill.stats }, updated_at: new Date(state.drill.upd).toISOString() });
+  }
+  if (state.checksDirty) {
+    userData.push({ key: 'checks', value: { list: state.checks.list }, updated_at: new Date(state.checks.upd).toISOString() });
   }
   if (state.prepDirty) {
     userData.push({ key: 'prep', value: { status: state.prep.status, notes: state.prep.notes }, updated_at: new Date(state.prep.upd).toISOString() });
@@ -321,6 +348,7 @@ export function markPushed(box) {
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
     if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
     if (row.key === 'prep' && new Date(state.prep.upd).toISOString() === row.updated_at) state.prepDirty = false;
+    if (row.key === 'checks' && new Date(state.checks.upd).toISOString() === row.updated_at) state.checksDirty = false;
     if (row.key === 'activity') {
       const sent = row.value.days;
       const changed = Object.entries(state.activity.days).some(([d, n]) => n !== sent[d]);
@@ -331,5 +359,5 @@ export function markPushed(box) {
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty;
 }

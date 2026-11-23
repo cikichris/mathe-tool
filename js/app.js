@@ -24,6 +24,7 @@ import {
 import { COURSE_NAME } from '../config.js';
 import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
 import { computeStreak, lastDays, DEFAULT_GOAL } from './streak.js';
+import * as photos from './photos.js';
 
 const view = document.getElementById('view');
 let session = null;
@@ -273,7 +274,7 @@ function sessionActions(card, ui) {
       : `<button class="btn btn-primary btn-wide" data-action="rate" data-r="${AGAIN}">Weiter (kommt gleich nochmal)</button>`;
   }
   // Aufgabe
-  if (ui.revealed) return `<p class="rating-q">Wie lief die Aufgabe?</p>${ratingButtons(card)}`;
+  if (ui.revealed) return `<p class="rating-q">Wie lief die Aufgabe?</p>${ratingButtons(card)}<p class="check-hint"><a href="#/pruefen/${card.id}">Lieber mit Foto deiner Rechnung vergleichen</a></p>`;
   const tips = card.tipps || [];
   const tipBtn = ui.tips < tips.length
     ? `<button class="btn" data-action="tip">Tipp zeigen (${ui.tips + 1}/${tips.length})</button>`
@@ -495,6 +496,7 @@ function renderUnit(id) {
       </summary>
       <div class="browse-body">
         <p class="card-quelle">${esc(card.quelle)}</p>
+        ${checkLink(card, 'check-link-inline')}
         ${cardBody(card, all, true)}
       </div>
     </details>`;
@@ -544,6 +546,7 @@ function prepSelfHtml(card) {
       data-action="prep-status" data-card="${card.id}" data-status="${key}" aria-pressed="${st === key}">${v.label}</button>`).join('');
   return `<div class="prep-self">
     <p class="prep-self-label">Deine Vorbereitung</p>
+    ${checkLink(card, 'check-link-inline')}
     <div class="prep-status-row">${chips}</div>
     <label class="prep-note-label">Frage für die Übung
       <textarea class="prep-note" rows="2" data-note="${card.id}" placeholder="z. B. Warum wird hier durch 2 geteilt?">${esc(store.prepNote(card.id))}</textarea>
@@ -794,6 +797,190 @@ function liveRefresh(scrollToEnd) {
     const steps = view.querySelectorAll('.steps li, .result, .tip');
     steps[steps.length - 1]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   } else window.scrollTo(0, y);
+}
+
+// ---------------------------------------------------------------------
+//  Eigene Lösung prüfen: Foto der handschriftlichen Rechnung und
+//  Schritt-für-Schritt-Vergleich mit dem Lösungsweg
+// ---------------------------------------------------------------------
+
+const MARKS = {
+  gleich: { label: 'Wie hier', icon: '✓' },
+  anders: { label: 'Anders, aber richtig', icon: '≈' },
+  fehlt: { label: 'Fehlt / falsch', icon: '✗' },
+};
+let check = null; // { id, phase: 'foto' | 'vergleich' | 'fertig', marks: {}, result, photos: [], urls: [], rated }
+
+function checkLink(card, cls = 'btn btn-quiet') {
+  return card.typ === 'aufgabe' ? `<a class="${cls} check-link" href="#/pruefen/${card.id}">Eigene Lösung prüfen</a>` : '';
+}
+
+async function loadCheckPhotos() {
+  const list = await photos.photosFor(check.id);
+  check.urls.forEach((u) => URL.revokeObjectURL(u));
+  check.photos = list;
+  check.urls = list.map((e) => URL.createObjectURL(e.blob));
+}
+
+async function openCheck(id) {
+  if (check?.id !== id) check = { id, phase: 'foto', marks: {}, result: null, photos: [], urls: [], rated: false };
+  renderCheck();
+  await loadCheckPhotos();
+  if (currentRoute().name === 'pruefen' && check.id === id) {
+    if (check.photos.length && check.phase === 'foto') check.phase = 'vergleich';
+    renderCheck();
+  }
+}
+
+function checkSummary(card) {
+  const steps = card.schritte || [];
+  const counts = { gleich: 0, anders: 0, fehlt: 0, offen: 0 };
+  steps.forEach((_, i) => { counts[check.marks[i] || 'offen'] += 1; });
+  return { ...counts, total: steps.length };
+}
+
+function checkPhotosHtml() {
+  if (!check.photos.length) return '<p class="muted small">Noch kein Foto. Es bleibt nur auf diesem Gerät gespeichert.</p>';
+  return `<div class="check-photos">${check.photos.map((p, i) => `<figure class="check-photo">
+      <button class="check-photo-open" data-action="check-zoom" data-i="${i}" aria-label="Foto ${i + 1} groß anzeigen"><img src="${check.urls[i]}" alt="Foto deiner Lösung, Seite ${i + 1}"></button>
+      <button class="check-photo-del" data-action="check-del" data-id="${p.id}" aria-label="Foto ${i + 1} löschen">✕</button>
+    </figure>`).join('')}</div>`;
+}
+
+function checkHistoryHtml(card) {
+  const list = store.checksFor(card.id);
+  const fb = card.rueckmeldung || [];
+  let html = '';
+  if (list.length) {
+    html += `<h2>Bisherige Kontrollen</h2><ul class="check-history">${list.slice().reverse().map((c) => `<li>
+      <span class="check-badge check-badge-${c.result === 'richtig' ? 'ok' : 'bad'}">${c.result === 'richtig' ? 'Ergebnis richtig' : 'Ergebnis falsch'}</span>
+      <span>${shortDate(c.d)} · ${c.gleich + c.anders} von ${c.of} Schritten${c.fehlt ? `, ${c.fehlt} fehlten` : ''}</span></li>`).join('')}</ul>`;
+  }
+  if (fb.length) {
+    html += `<h2>Rückmeldung von Claude</h2>${fb.map((f) => `<div class="abgleich abgleich-ergaenzt"><span class="abgleich-label">Deine Lösung · ${shortDate(f.datum)}</span>${fmt(f.text)}</div>`).join('')}`;
+  }
+  return html;
+}
+
+function renderCheck() {
+  const card = cardById.get(check.id);
+  if (!card || card.typ !== 'aufgabe') { location.replace('#/inhalte'); return; }
+  const unit = card.unit;
+  const title = card.teil ? `${unit.kurz}, ${card.teil === 'praesenz' ? 'Präsenzaufgabe' : 'Aufgabe'} ${card.nr}` : `${unit.kurz} · ${card.quelle}`;
+  const steps = card.schritte || [];
+  const sum = checkSummary(card);
+  let body = '';
+
+  // 1) Aufgabe und Foto
+  body += `<section class="panel check-step">
+    <p class="check-step-label">1 · Selbst rechnen</p>
+    <p class="muted small">Rechne die Aufgabe vollständig auf Papier, wie in der Klausur: jeden Schritt aufschreiben.</p>
+  </section>
+  <section class="panel check-step">
+    <p class="check-step-label">2 · Foto deiner Lösung</p>
+    ${checkPhotosHtml()}
+    <label class="btn btn-wide check-add">
+      <input type="file" accept="image/*" data-action="check-file" hidden multiple>
+      ${check.photos.length ? 'Weitere Seite hinzufügen' : 'Foto aufnehmen oder auswählen'}
+    </label>
+    ${check.phase === 'foto' ? `<div class="action-row">
+      <button class="btn btn-primary" data-action="check-start" ${check.photos.length ? '' : 'disabled'}>Vergleichen</button>
+      <button class="btn btn-quiet" data-action="check-start">Ohne Foto vergleichen</button>
+    </div>` : ''}
+  </section>`;
+
+  // 2) Vergleich
+  if (check.phase !== 'foto') {
+    body += `<section class="panel check-step">
+      <p class="check-step-label">3 · Schritt für Schritt vergleichen</p>
+      <p class="muted small">Tippe bei jedem Schritt an, ob er bei dir genauso, anders (aber richtig) oder gar nicht bzw. falsch vorkommt. Mit dem Foto oben kannst du jederzeit nachsehen.</p>
+      <ol class="steps check-steps">${steps.map((st, i) => {
+        const m = check.marks[i];
+        const btns = Object.entries(MARKS).map(([k, v]) => `<button class="check-mark check-mark-${k} ${m === k ? 'is-on' : ''}" data-action="check-mark" data-i="${i}" data-m="${k}" aria-pressed="${m === k}" ${check.phase === 'fertig' ? 'disabled' : ''}><span aria-hidden="true">${v.icon}</span> ${v.label}</button>`).join('');
+        return `<li class="${m ? `is-${m}` : ''}"><div class="step-text">${fmt(st.t)}</div>${st.w ? `<div class="step-why">${fmt(st.w)}</div>` : ''}${st.q ? `<div class="step-source"><span class="step-source-label">Woher?</span>${fmt(st.q)}</div>` : ''}
+          <div class="check-marks">${btns}</div></li>`;
+      }).join('')}</ol>
+      ${resultHtml(card)}
+      <p class="check-q">Stimmt dein Endergebnis?</p>
+      <div class="check-marks">
+        <button class="check-mark check-mark-gleich ${check.result === 'richtig' ? 'is-on' : ''}" data-action="check-result" data-r="richtig" ${check.phase === 'fertig' ? 'disabled' : ''}>✓ Ja</button>
+        <button class="check-mark check-mark-fehlt ${check.result === 'falsch' ? 'is-on' : ''}" data-action="check-result" data-r="falsch" ${check.phase === 'fertig' ? 'disabled' : ''}>✗ Nein</button>
+      </div>
+      ${card.fehler?.length ? `<div class="pitfalls"><h3>Typische Fehler, nach denen du schauen kannst</h3><ul>${card.fehler.map((f) => `<li>${fmt(f)}</li>`).join('')}</ul></div>` : ''}
+      ${check.phase === 'vergleich' ? `<button class="btn btn-primary btn-wide" data-action="check-finish" ${check.result ? '' : 'disabled'}>Auswerten${sum.offen ? ` (${sum.offen} ${sum.offen === 1 ? 'Schritt' : 'Schritte'} nicht markiert)` : ''}</button>` : ''}
+    </section>`;
+  }
+
+  // 3) Auswertung
+  if (check.phase === 'fertig') {
+    const good = check.result === 'richtig';
+    const verdict = good && !sum.fehlt ? 'Sehr gut: Ergebnis richtig, kein Schritt fehlt.'
+      : good ? `Ergebnis richtig, aber ${plural(sum.fehlt, 'Schritt fehlt', 'Schritte fehlen')} oder ${sum.fehlt === 1 ? 'ist' : 'sind'} falsch. In der Klausur kostet das Punkte.`
+        : 'Ergebnis falsch. Schau dir die rot markierten Schritte und die typischen Fehler an.';
+    const suggest = good && !sum.fehlt ? GOOD : good ? HARD : AGAIN;
+    body += `<section class="panel check-step check-result ${good && !sum.fehlt ? 'is-good' : good ? 'is-mid' : 'is-bad'}">
+      <p class="check-step-label">4 · Auswertung</p>
+      <p class="check-verdict">${verdict}</p>
+      <p class="muted small">${sum.gleich} wie im Lösungsweg · ${sum.anders} anders, aber richtig · ${sum.fehlt} fehlt oder falsch${sum.offen ? ` · ${sum.offen} nicht markiert` : ''}</p>
+      ${check.rated ? '<p class="streak-note is-done">Gespeichert. Die Karte ist neu eingeplant.</p>' : `<p class="rating-q">Wie soll die Aufgabe eingeplant werden? (Vorschlag: ${RATING_LABELS[suggest]})</p>${ratingButtons(card).replace(/data-action="rate"/g, 'data-action="check-rate"').replace(`rate-${suggest}"`, `rate-${suggest} is-suggested"`)}`}
+      <div class="action-row check-share">
+        <button class="btn" data-action="check-share">Für Claude teilen</button>
+        <button class="btn btn-quiet" data-action="check-again">Nochmal vergleichen</button>
+      </div>
+      <p class="muted small">„Für Claude teilen“ öffnet das Teilen-Menü mit deinen Fotos und einem kurzen Text. Schick beides im Chat, dann prüfe ich deine Lösung genauer und trage die Rückmeldung hier ein.</p>
+    </section>`;
+  }
+
+  show(`<section class="check">
+    <button class="back back-btn" data-action="check-back">Zurück</button>
+    <header class="page-head">
+      <p class="eyebrow">Eigene Lösung prüfen · ${esc(title)}</p>
+      <h1 class="check-title">${esc(card.thema)}</h1>
+    </header>
+    <article class="card card-aufgabe">
+      <div class="frage">${fmt(card.frage)}</div>
+      ${card.plot ? plotSVG(card.plot) : ''}
+    </article>
+    ${body}
+    ${checkHistoryHtml(card)}
+  </section>`);
+}
+
+function zoomPhoto(i) {
+  const url = check.urls[i];
+  if (!url) return;
+  const el = document.createElement('div');
+  el.className = 'check-zoom';
+  el.innerHTML = `<button class="check-zoom-close" aria-label="Schließen">✕</button><div class="check-zoom-inner"><img src="${url}" alt="Foto deiner Lösung"></div>`;
+  el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('.check-zoom-close')) el.remove(); });
+  document.body.append(el);
+}
+
+async function shareForClaude() {
+  const card = cardById.get(check.id);
+  const sum = checkSummary(card);
+  const where = card.teil ? `${card.unit.kurz}, ${card.teil === 'praesenz' ? 'Präsenzaufgabe' : 'Aufgabe'} ${card.nr}` : `${card.unit.kurz}, ${card.quelle}`;
+  const text = `Bitte prüfe meine Lösung (Mathe-Tool, ${where}, ID ${card.id}). `
+    + `Meine Selbstkontrolle: Ergebnis ${check.result === 'richtig' ? 'richtig' : 'falsch'}, ${sum.gleich} Schritte wie im Lösungsweg, ${sum.anders} anders, ${sum.fehlt} fehlen oder falsch.`;
+  const files = check.photos.map((p, i) => new File([p.blob], `${card.id}-seite${i + 1}.jpg`, { type: 'image/jpeg' }));
+  try {
+    if (navigator.canShare?.({ files }) && files.length) {
+      await navigator.share({ files, text, title: 'Meine Lösung' });
+      return;
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return;
+  }
+  // Ersatz: Fotos herunterladen und Text kopieren
+  files.forEach((f) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
+  try { await navigator.clipboard.writeText(text); } catch { /* egal */ }
+  window.alert(`${files.length ? 'Die Fotos wurden heruntergeladen. ' : ''}Der Text für Claude ist kopiert:\n\n${text}`);
 }
 
 // ---------------------------------------------------------------------
@@ -1065,6 +1252,7 @@ function route() {
   else if (name === 'inhalte') renderContents();
   else if (name === 'uebung') renderPrep(arg);
   else if (name === 'live') renderLive(arg);
+  else if (name === 'pruefen') openCheck(arg);
   else if (name === 'methoden') renderDrill();
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
@@ -1107,6 +1295,36 @@ const actions = {
     renderSession();
   },
   rate: (el) => rateCurrent(Number(el.dataset.r)),
+  'check-back': () => { if (history.length > 1) history.back(); else location.hash = `#/inhalte/${cardById.get(check.id).unit.id}`; },
+  'check-start': () => { check.phase = 'vergleich'; renderCheck(); document.querySelector('.check-steps')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+  'check-mark': (el) => {
+    const i = Number(el.dataset.i);
+    check.marks[i] = check.marks[i] === el.dataset.m ? undefined : el.dataset.m;
+    const y = window.scrollY; renderCheck(); window.scrollTo(0, y);
+  },
+  'check-result': (el) => { check.result = el.dataset.r; const y = window.scrollY; renderCheck(); window.scrollTo(0, y); },
+  'check-finish': () => {
+    const card = cardById.get(check.id);
+    const sum = checkSummary(card);
+    store.addCheck(card.id, { d: dateStr(), gleich: sum.gleich, anders: sum.anders, fehlt: sum.fehlt, of: sum.total, result: check.result });
+    check.phase = 'fertig';
+    renderCheck();
+    document.querySelector('.check-result')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  },
+  'check-rate': (el) => {
+    store.rate(check.id, Number(el.dataset.r), 'selbstkontrolle');
+    check.rated = true;
+    const y = window.scrollY; renderCheck(); window.scrollTo(0, y);
+  },
+  'check-again': () => { Object.assign(check, { phase: 'vergleich', marks: {}, result: null, rated: false }); renderCheck(); },
+  'check-share': () => shareForClaude(),
+  'check-zoom': (el) => zoomPhoto(Number(el.dataset.i)),
+  'check-del': async (el) => {
+    if (!window.confirm('Dieses Foto löschen?')) return;
+    await photos.deletePhoto(el.dataset.id);
+    await loadCheckPhotos();
+    renderCheck();
+  },
   'drill-filter': (el) => { drillFilter = el.dataset.g; renderDrillStart(); },
   'drill-start': () => startDrill(),
   'drill-pick': (el) => {
@@ -1175,8 +1393,17 @@ document.addEventListener('click', (event) => {
   if (fn) fn(el);
 });
 
-document.addEventListener('change', (event) => {
+document.addEventListener('change', async (event) => {
   const el = event.target;
+  if (el.dataset.action === 'check-file' && check) {
+    const files = [...(el.files || [])];
+    if (!files.length) return;
+    el.closest('label')?.classList.add('is-busy');
+    for (const f of files) await photos.addPhoto(check.id, f);
+    await loadCheckPhotos();
+    renderCheck();
+    return;
+  }
   if (el.dataset.action === 'sheet-toggle') {
     store.setSheetSelected(el.dataset.id, el.checked);
     renderSheet();

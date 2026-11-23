@@ -6,6 +6,7 @@ Lern-App für **Mathematik (RE), Wintersemester 26/27**. Vorlesungen und Übunge
 - **Inhalte:** alle Karten nach Woche, Vorlesung und Übung. Jede Einheit lässt sich frei üben.
 - **Aufgaben** mit gestuften Tipps, kommentiertem Lösungsweg, typischen Fehlern und dem Rezept für den Aufgabentyp.
 - **Übung:** Besprechungs- und Präsenzaufgaben mit Lösungsweg zum Aufdecken. Vorher markierst du pro Aufgabe „Selbst gelöst“, „Mit Hilfe“ oder „Offen“ und notierst Fragen. In der Übung zeigt der Live-Modus eine Aufgabe nach der anderen mit großen Knöpfen, und der Bildschirm bleibt an.
+- **Eigene Lösung prüfen:** bei jeder Rechenaufgabe. Du rechnest auf Papier, fotografierst deine Lösung und gehst den Lösungsweg Schritt für Schritt durch: „Wie hier“, „Anders, aber richtig“ oder „Fehlt / falsch“. Danach gibt es eine Auswertung, einen Vorschlag für den Wiederholungsplan und die Möglichkeit, die Fotos für eine genauere Prüfung an Claude zu teilen. Die Fotos bleiben auf dem Gerät, die Ergebnisse werden mitgespeichert.
 - **Formelblatt:** Sammlung für das erlaubte A4-Blatt, mit Druckansicht.
 - **Einstellungen:** Klausurtermin, neue Karten pro Tag, Login.
 

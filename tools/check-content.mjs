@@ -59,6 +59,11 @@ for (const woche of WOCHEN) {
       if (!TYPEN.includes(card.typ)) errors.push(`${w}: unbekannter typ "${card.typ}"`);
       for (const key of ['thema', 'quelle', 'frage']) if (!card[key]) errors.push(`${w}: Feld "${key}" fehlt`);
       if (card.herkunft && !HERKUNFT.includes(card.herkunft)) errors.push(`${w}: unbekannte herkunft`);
+      for (const [i, f] of (card.rueckmeldung || []).entries()) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(f.datum || '')) errors.push(`${w}: rueckmeldung[${i}].datum fehlt oder falsches Format`);
+        if (!f.text) errors.push(`${w}: rueckmeldung[${i}].text fehlt`);
+        checkMath(`${w}.rueckmeldung[${i}]`, f.text);
+      }
       if (card.abgleich) {
         const a = card.abgleich;
         if (!['bestaetigt', 'abweichung', 'ergaenzt'].includes(a.status)) errors.push(`${w}: abgleich.status unbekannt`);

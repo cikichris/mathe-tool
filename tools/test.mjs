@@ -200,3 +200,17 @@ test('Übungsvorbereitung: Status und Fragen werden gespeichert und abgeglichen'
   store.applyRemote({ userData: [{ key: 'prep', value: { status: { x: 'selbst' }, notes: {} }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
   assert.equal(store.prepStatus('x'), 'selbst');
 });
+
+test('Eigene Lösung prüfen: Kontrollen werden gespeichert und abgeglichen', () => {
+  store.resetAll();
+  for (let i = 0; i < 12; i += 1) store.addCheck('ue06-a6a', { d: '2026-11-23', gleich: i, anders: 0, fehlt: 1, of: 5, result: 'falsch' });
+  assert.equal(store.checksFor('ue06-a6a').length, 10, 'nur die letzten 10 bleiben');
+  assert.equal(store.checksFor('ue06-a6a').at(-1).gleich, 11);
+  const box = store.outbox();
+  assert.equal(box.userData.find((r) => r.key === 'checks').value.list['ue06-a6a'].length, 10);
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  store.applyRemote({ userData: [{ key: 'checks', value: { list: { x: [{ d: '2026-11-22', result: 'richtig' }] } }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
+  assert.equal(store.checksFor('x')[0].result, 'richtig');
+  assert.deepEqual(store.checksFor('nichts'), []);
+});

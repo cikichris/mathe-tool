@@ -565,6 +565,59 @@ code { font-size: 0.9em; background: var(--surface-2); padding: 0.1em 0.35em; bo
 .live-nav .btn { min-height: 40px; }
 .in-live .view { padding-bottom: 0; }
 
+/* ---------- Eigene Lösung prüfen ---------- */
+
+.back-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
+.check-title { font-size: 1.4rem; }
+.check .card { margin-bottom: 0.8rem; }
+.check-step { margin-bottom: 0.8rem; }
+.check-step-label { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.check-add { cursor: pointer; }
+.check-add.is-busy { opacity: 0.6; pointer-events: none; }
+.check-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.5rem; }
+.check-photo { position: relative; margin: 0; }
+.check-photo-open { display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); cursor: zoom-in; }
+.check-photo img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.check-photo-del {
+  position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0;
+  background: color-mix(in srgb, var(--ink) 70%, transparent); color: var(--surface); font-size: 0.8rem; cursor: pointer;
+}
+.check-steps li { padding-bottom: 1.2rem; }
+.check-steps li.is-gleich::before { background: var(--right-bg); color: var(--good); }
+.check-steps li.is-anders::before { background: var(--tip-bg); color: var(--accent); }
+.check-steps li.is-fehlt::before { background: var(--wrong-bg); color: var(--again); }
+.check-marks { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.check-mark {
+  --tone: var(--muted);
+  min-height: 36px; padding: 0.3rem 0.65rem; border-radius: 999px; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent); background: var(--surface); color: var(--tone);
+}
+.check-mark-gleich { --tone: var(--good); }
+.check-mark-anders { --tone: var(--accent); }
+.check-mark-fehlt { --tone: var(--again); }
+.check-mark.is-on { background: var(--tone); border-color: var(--tone); color: var(--surface); }
+.check-mark:disabled { cursor: default; opacity: 0.85; }
+.check-q { margin-top: 0.9rem; font-weight: 700; }
+.check-step .btn-wide { margin-top: 1rem; }
+.check-result.is-good { border-color: var(--good); }
+.check-result.is-mid { border-color: var(--hard); }
+.check-result.is-bad { border-color: var(--again); }
+.check-verdict { font-size: 1.05rem; font-weight: 700; }
+.rate.is-suggested { outline: 3px solid var(--tone); outline-offset: 2px; }
+.check-share { margin-top: 0.4rem; }
+.check-history { list-style: none; padding: 0; display: grid; gap: 0.4rem; }
+.check-history li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: center; padding: 0.6rem 0.8rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 0.9rem; }
+.check-badge { font-size: 0.75rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 6px; }
+.check-badge-ok { background: var(--right-bg); color: var(--good); }
+.check-badge-bad { background: var(--wrong-bg); color: var(--again); }
+.check-link-inline { display: inline-block; margin: 0.5rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; }
+.check-link-inline::before { content: "📷 "; }
+.check-hint { text-align: center; margin-top: 0.6rem; font-size: 0.88rem; }
+.check-zoom { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.9); display: grid; }
+.check-zoom-inner { overflow: auto; padding: 3rem 0.5rem 1rem; }
+.check-zoom-inner img { display: block; max-width: 100%; margin: 0 auto; }
+.check-zoom-close { position: fixed; top: calc(0.8rem + env(safe-area-inset-top)); right: 0.8rem; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.2); color: #fff; font-size: 1.1rem; cursor: pointer; }
+
 /* ---------- Methode erkennen ---------- */
 
 .chip-row button.chip { font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--muted); }
