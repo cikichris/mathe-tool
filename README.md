@@ -97,4 +97,7 @@ Prüfungen:
 ```
 node tools/check-content.mjs    # Inhalte und Formeln
 node --test tools/test.mjs      # Wiederholungsplan und Abgleich
+node tools/browser-check.cjs    # alle Seiten im Browser (Server auf Port 8765)
 ```
+
+Hinweise für Claude Code stehen in [CLAUDE.md](CLAUDE.md).
