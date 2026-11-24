@@ -24,5 +24,6 @@ import vl09 from './vl09.js';
 import vl10 from './vl10.js';
 import vl11 from './vl11.js';
 import vl12 from './vl12.js';
+import vl13 from './vl13.js';
 
-export const DURCHGAENGE = Object.fromEntries([vl01, vl02, vl03, vl04, vl05, vl06, vl07, vl09, vl10, vl11, vl12].map((d) => [d.unit, d]));
+export const DURCHGAENGE = Object.fromEntries([vl01, vl02, vl03, vl04, vl05, vl06, vl07, vl09, vl10, vl11, vl12, vl13].map((d) => [d.unit, d]));

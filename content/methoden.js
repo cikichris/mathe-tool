@@ -52,6 +52,9 @@ export const METHODEN = {
   'abl-exp': '$(a^x)\' = \\ln(a) \\cdot a^x$',
   'abl-tangente': 'Tangentengleichung $f(x_0) + f\'(x_0)(x - x_0)$',
   'abl-sekante': 'Sekantensteigung $\\frac{f(x_2) - f(x_1)}{x_2 - x_1}$',
+  'abl-kette': 'Kettenregel: äußere mal innere Ableitung',
+  'abl-produkt': "Produktregel $g'h + gh'$",
+  'abl-log': "$(\\ln x)' = \\frac{1}{x}$ bzw. $\\frac{1}{\\ln(a)\\,x}$",
   // Dreiecke
   'dr-sin': 'Sinus: Gegenkathete durch Hypotenuse',
   'dr-cos': 'Cosinus: Ankathete durch Hypotenuse',
@@ -67,7 +70,7 @@ export const GRUPPEN = [
   { id: 'trig', titel: 'Winkelfunktionen', methoden: ['sin-formel', 'cos-formel', 'tan-formel', 'trig-keine', 'trig-ablesen'] },
   { id: 'geraden', titel: 'Geraden', methoden: ['zweipunkte', 'parallel', 'gleichsetzen', 'ablesen', 'wert'] },
   { id: 'symmetrie', titel: 'Symmetrie', methoden: ['sym-allg', 'sym-gegen', 'sym-d'] },
-  { id: 'ableitung', titel: 'Ableitungen', methoden: ['abl-potenz', 'abl-summe', 'abl-trig', 'abl-exp', 'abl-tangente', 'abl-sekante'] },
+  { id: 'ableitung', titel: 'Ableitungen', methoden: ['abl-potenz', 'abl-summe', 'abl-trig', 'abl-exp', 'abl-log', 'abl-kette', 'abl-produkt', 'abl-tangente', 'abl-sekante'] },
   { id: 'dreieck', titel: 'Dreiecke', methoden: ['dr-sin', 'dr-cos', 'dr-tan', 'dr-pyth', 'dr-winkel'] },
 ];
 
@@ -238,6 +241,22 @@ export const AUFGABEN = [
   { id: 'm-a10', g: 'ableitung', a: r`Was ist die Momentangeschwindigkeit zum Zeitpunkt $t = 1$, wenn $s(t) = t^2$ der Weg ist?`, m: 'abl-potenz',
     f: 'Was rechnest du?',
     w: r`Momentan heißt lokal: $s'(t) = 2t$, also $s'(1) = 2$. Die Durchschnittsgeschwindigkeit wäre eine Sekantensteigung.`, q: r`VL 12, Folie 8` },
+  { id: 'm-a11', g: 'ableitung', a: r`Leite $f(x) = (2x + 3)^5$ ab.`, m: 'abl-kette',
+    w: r`Eine Klammer hoch 5: außen $z^5$, innen $2x + 3$. Ausmultiplizieren wäre viel zu aufwendig.`, q: r`VL 13, Folien 7 und 8` },
+  { id: 'm-a12', g: 'ableitung', a: r`Leite $f(x) = \sqrt{4x - x^2}$ ab.`, m: 'abl-kette',
+    w: r`Unter der Wurzel steht ein ganzer Term: Wurzel außen, $4x - x^2$ innen.`, q: r`VL 13, Folie 9` },
+  { id: 'm-a13', g: 'ableitung', a: r`Leite $f(x) = e^{-x}$ ab.`, m: 'abl-kette', auch: ['abl-exp'],
+    w: r`Im Exponenten steht $-x$, nicht $x$: innere Ableitung $-1$, also $-e^{-x}$.`, q: r`VL 13, Folie 9, Beispiel 4` },
+  { id: 'm-a14', g: 'ableitung', a: r`Leite $f(x) = (x^2 + 1) \cdot e^x$ ab.`, m: 'abl-produkt',
+    w: r`Zwei Funktionen von $x$ werden multipliziert: Produktregel.`, q: r`VL 13, Folie 14` },
+  { id: 'm-a15', g: 'ableitung', a: r`Leite $f(x) = \sin(x) \cdot \cos(x)$ ab.`, m: 'abl-produkt', auch: ['abl-trig'],
+    w: r`Ein Produkt zweier Funktionen: $g' h + g h'$.`, q: r`VL 13, Folie 14` },
+  { id: 'm-a16', g: 'ableitung', a: r`Leite $f(x) = \sin(x^2)$ ab.`, m: 'abl-kette', auch: ['abl-trig'],
+    w: r`$x^2$ steht **in** der Sinusfunktion: verkettet, nicht multipliziert.`, q: r`VL 13, Folie 8` },
+  { id: 'm-a17', g: 'ableitung', a: r`Leite $f(x) = \ln(x)$ ab.`, m: 'abl-log',
+    w: r`Grundableitung: $(\ln x)' = \frac{1}{x}$.`, q: r`VL 13, Folie 3` },
+  { id: 'm-a18', g: 'ableitung', a: r`Leite $f(x) = x^3 \cdot \ln(x)$ ab.`, m: 'abl-produkt', auch: ['abl-log'],
+    w: r`Potenz **mal** Logarithmus: Produktregel, darin $(\ln x)' = \frac{1}{x}$.`, q: r`VL 13, Folien 3 und 12` },
 
   // ---------------- Dreiecke ----------------
   { id: 'm-d01', g: 'dreieck', a: r`Dreieck mit $\gamma = 90^\circ$, $\alpha = 40^\circ$, $c = 5$ cm. Gesucht: $a$.`, m: 'dr-sin',

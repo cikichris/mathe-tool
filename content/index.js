@@ -35,6 +35,7 @@ import vl09 from './vl09.js';
 import vl10 from './vl10.js';
 import vl11 from './vl11.js';
 import vl12 from './vl12.js';
+import vl13 from './vl13.js';
 import ue01 from './ue01.js';
 import ue02 from './ue02.js';
 import ue03 from './ue03.js';
@@ -49,4 +50,5 @@ export const WOCHEN = [
   { nr: 4, titel: 'Logarithmengleichungen, Winkel und Dreiecke', einheiten: [vl07, vl08, ue04] },
   { nr: 5, titel: 'Winkelfunktionen', einheiten: [vl09, vl10, ue05] },
   { nr: 6, titel: 'Cosinus-/Tangensgleichungen und Ableitungen', einheiten: [vl11, vl12, ue06] },
+  { nr: 7, titel: 'Kettenregel und Produktregel', einheiten: [vl13] },
 ];
