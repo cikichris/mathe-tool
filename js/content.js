@@ -1,6 +1,7 @@
 // Bereitet die Inhalte aus content/ für die App auf.
 import { WOCHEN } from '../content/index.js';
 import { THEMEN, OHNE_THEMA } from '../content/themen.js';
+import { DURCHGAENGE } from '../content/durchgang/index.js';
 
 export const TYP_LABEL = {
   definition: 'Definition',
@@ -78,3 +79,21 @@ for (const card of cards) {
   else if (!OHNE_THEMA.includes(card.thema)) console.warn('Thema ohne Klausurthema:', card.thema);
 }
 export const themaById = new Map(themen.map((t) => [t.id, t]));
+
+/** Vorlesung durchgehen: unit.durchgang = { abschnitte: [...] }; jeder Abschnitt kennt sein Klausurthema. */
+export const abschnittById = new Map();
+for (const unit of units) {
+  const d = DURCHGAENGE[unit.id];
+  if (!d) continue;
+  unit.durchgang = d;
+  // Häufigstes Klausurthema der Einheit als Vorgabe
+  const count = {};
+  for (const c of unit.karten) if (c.klausurthema) count[c.klausurthema] = (count[c.klausurthema] || 0) + 1;
+  const haupt = Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  for (const a of d.abschnitte) {
+    a.unit = unit;
+    const linked = (a.karten || []).map((id) => cardById.get(id)).find((c) => c?.klausurthema);
+    a.klausurthema = linked?.klausurthema || haupt;
+    abschnittById.set(a.id, a);
+  }
+}
