@@ -26,8 +26,9 @@ Das Konzept steht in [KONZEPT.md](KONZEPT.md).
 | 4 | 7 Logarithmengleichungen, 8 Selbststudium: Winkel und Dreiecke | 4 Logarithmen, Winkel und Dreiecke |
 | 5 | 9 Sinus, Cosinus, Tangens, 10 Allgemeine Winkelfunktionen | 5 Periodische Funktionen und Sinusgleichungen |
 | 6 | 11 Cosinus-/Tangensgleichungen und Ableitungsbegriff, 12 Ableitungsregeln | 6 Winkelfunktionen und erste Ableitungen |
+| 7 | 13 Ableitung von Logarithmus- und Arkusfunktionen, Kettenregel, Produktregel | |
 
-Insgesamt 254 Karten, davon 134 Rechenaufgaben, plus 80 Aufgaben im Schnelltraining „Methode erkennen“. Präsenzübungen 1 bis 5 sind bei den Übungsblättern eingetragen.
+Insgesamt 268 Karten, davon 141 Rechenaufgaben, plus 88 Aufgaben im Schnelltraining „Methode erkennen“. Zu den Vorlesungen 1–7 und 9–13 gibt es den Durchgang mit den handschriftlichen Notizen (85 Abschnitte). Präsenzübungen 1 bis 5 sind bei den Übungsblättern eingetragen.
 
 Bei jeder Aufgabe steht, woher die Lösung stammt: aus der offiziellen Lösung, aus der Vorlesung oder von Claude (dann noch nicht mit einer Musterlösung abgeglichen).
 
@@ -68,12 +69,20 @@ Die Datei `supabase/schema.sql` kann beliebig oft ausgeführt werden. Vorhandene
 
 ## Neue Woche einpflegen
 
-1. Material ins private Repository `mathe-material` legen oder im Chat hochladen.
-2. Claude legt `content/vlXX.js` bzw. `content/ueXX.js` an und trägt die Datei in `content/index.js` ein. Aufgaben, die in der Übung besprochen werden, bekommen `teil: 'besprechung'` (Präsenzaufgaben `teil: 'praesenz'`) und eine Nummer `nr`. Sie erscheinen dann unter „Übung“.
-3. Prüfen: `node tools/check-content.mjs`
-4. Pull Request nach `main` mergen. Kurz darauf ist die neue Woche online.
+1. Material ins private Repository `mathe-material` legen oder im Chat hochladen (Vorlesung am besten mit Notizen).
+2. **Vorlesung:**
+   - `content/vlXX.js` mit Karten anlegen: Definitionen, Sätze, Formeln, Verständnisfragen und Rechenaufgaben mit Tipps, Lösungsweg (`schritte` mit „Woher?“ in `q`), Ergebnis, typischen Fehlern und `herkunft`.
+   - `content/durchgang/vlXX.js`: Vorlesung durchgehen, Folie für Folie mit den handschriftlichen Zwischenschritten (`notizen`), `kern`, `check` und passenden `karten`. In `content/durchgang/index.js` eintragen.
+   - `formelblatt`-Einträge für das A4-Blatt ergänzen.
+3. **Übungsblatt:** `content/ueXX.js` mit allen Aufgaben. Aufgaben, die in der Übung besprochen werden, bekommen `teil: 'besprechung'` (Präsenzaufgaben `teil: 'praesenz'`) und `nr`, das Blatt bekommt `besprechung: [Daten]`. Sie erscheinen dann unter „Übung“ und im Live-Modus.
+4. Neue Einheiten in `content/index.js` in die passende Woche eintragen.
+5. Neue Themen (Feld `thema`) in `content/themen.js` einem Klausurthema zuordnen. Kommt ein ganz neues Klausurthema dazu, bekommt es dort einen Eintrag mit `kurz`; die Skyline (`js/skyline.js`, derzeit auf 8 Türme ausgelegt) muss dann angepasst werden.
+6. Neue Aufgabentypen ins Schnelltraining `content/methoden.js` aufnehmen.
+7. Fotos aus der Übung: Lösungswege abgleichen (`abgleich`), Rückmeldungen zu eigenen Lösungen als `rueckmeldung` eintragen.
+8. Prüfen: `node tools/check-content.mjs` und `node --test tools/test.mjs`, dann im Browser durchklicken.
+9. Pull Request nach `main` mergen. Kurz darauf ist die neue Woche online.
 
-Die `id` einer Karte darf nachträglich nicht mehr geändert werden. An ihr hängt der gespeicherte Lernstand.
+Die `id` einer Karte oder eines Durchgang-Abschnitts darf nachträglich nicht mehr geändert werden. Daran hängt der gespeicherte Lernstand.
 
 ## Entwicklung
 
