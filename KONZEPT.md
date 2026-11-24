@@ -146,6 +146,9 @@ letzten 12 Wochen und Meilensteinen. Skyline: Lernpunkte lassen pro
 Klausurthema ein Hochhaus wachsen, Fenster leuchten je nach Klausurreife,
 Extras kosten Punkte (js/skyline.js).
 
+Vorlesungen durchgehen (content/durchgang/, VL 1–7 und 9–12; VL 8 war
+Selbststudium ohne Folien), Lernmodus mit Pomodoro-Timer und Atemübungen.
+
 Vorgemerkt:
 - **Klausur-Simulation:** gemischte Aufgaben mit Zeitlimit, nur mit dem
   Formelblatt; am besten auf Basis von Altklausuren, sobald vorhanden.

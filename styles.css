@@ -973,3 +973,95 @@ p > .part:first-child { margin-top: 0; }
 .sky-table tr.is-ready th::after { content: " ✓"; color: var(--good); }
 .rule-row { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.92rem; }
 .rule-row strong { font-variant-numeric: tabular-nums; color: var(--hard); }
+
+/* ---------- Lernmodus und Atemübung ---------- */
+
+.calm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.8rem; }
+.calm-tile { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.8rem 0.9rem; text-decoration: none; color: inherit; margin: 0 !important; }
+.calm-tile > span:last-child { display: grid; font-size: 0.92rem; }
+.calm-tile .muted { font-size: 0.8rem; }
+.calm-icon { font-size: 1.5rem; line-height: 1.1; }
+@media (max-width: 360px) { .calm-row { grid-template-columns: 1fr; } }
+
+.fokus-main { text-align: center; }
+.fokus-dial { position: relative; width: min(240px, 70vw); margin: 0.4rem auto 0; }
+.fokus-ring { width: 100%; height: auto; display: block; }
+.ring-bg { fill: none; stroke: var(--surface-2); stroke-width: 7; }
+.ring-fg { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+.phase-pause .ring-fg { stroke: var(--good); }
+.is-paused .ring-fg { stroke: var(--muted); }
+.fokus-dial-text { position: absolute; inset: 0; display: grid; place-content: center; gap: 0.1rem; }
+.fokus-dial-text strong { font-size: 2.6rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fokus-phase { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.phase-pause .fokus-phase { color: var(--good); }
+.fokus-hint { max-width: 34ch; margin-left: auto !important; margin-right: auto; }
+.fokus-controls { justify-content: center; }
+.fokus-today { font-size: 1.1rem; letter-spacing: 0.05em; }
+.fokus-settings summary { cursor: pointer; font-weight: 700; }
+.fokus-settings .form { margin-top: 0.8rem; display: grid; gap: 0.7rem; }
+.fokus-settings select { display: block; width: 100%; margin-top: 0.25rem; min-height: 44px; font: inherit; padding: 0.4rem 0.6rem; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.check-row { display: flex; align-items: center; gap: 0.6rem; }
+.check-row input { width: 20px; height: 20px; }
+.fokus-page h2 { margin-top: 1.4rem; }
+.fokus-page .fokus-settings { margin-top: 1rem; }
+
+.fokus-pill {
+  position: fixed; right: 0.8rem; bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom) + 0.7rem); z-index: 30;
+  padding: 0.45rem 0.85rem; border-radius: 999px; font-weight: 800; font-variant-numeric: tabular-nums; font-size: 0.92rem;
+  background: var(--accent); color: var(--on-accent); text-decoration: none; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.fokus-pill.phase-pause { background: var(--good); color: var(--surface); }
+.fokus-pill.phase-bereit { background: var(--hard); color: var(--surface); animation: pill-pulse 1.6s ease-in-out infinite; }
+.fokus-pill.is-paused { background: var(--muted); color: var(--surface); }
+.in-session .fokus-pill { bottom: calc(env(safe-area-inset-bottom) + 0.8rem); top: auto; }
+@keyframes pill-pulse { 50% { transform: scale(1.06); } }
+@media (min-width: 760px) { .fokus-pill { bottom: 1.2rem; } }
+
+.breath { text-align: center; }
+.breath-stage { position: relative; width: min(230px, 64vw); aspect-ratio: 1; margin: 0.4rem auto 0.6rem; display: grid; place-items: center; }
+.breath-circle {
+  position: absolute; inset: 0; border-radius: 50%; transform: scale(0.5);
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 35%, var(--surface)), color-mix(in srgb, var(--accent) 70%, var(--surface)));
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.breath-circle[data-art="aus"], .breath-circle[data-art="leer"] { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--good) 30%, var(--surface)), color-mix(in srgb, var(--good) 60%, var(--surface))); }
+.breath-circle.is-done { background: color-mix(in srgb, var(--good) 45%, var(--surface)); }
+.breath-text { position: relative; display: grid; gap: 0.1rem; color: var(--ink); }
+.breath-text strong { font-size: 1.35rem; }
+.breath-text span { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.breath-info { text-align: left; font-size: 0.9rem; }
+.atmen-page .chip-row { margin-bottom: 0.7rem; }
+.atmen-page .breath { margin-bottom: 0.8rem; }
+@media (prefers-reduced-motion: reduce) { .breath-circle { transition: none !important; } }
+.atmen-page .chip-row { flex-wrap: wrap; overflow: visible; }
+.breath-text strong { text-shadow: 0 1px 2px var(--surface); }
+
+/* ---------- Vorlesung durchgehen ---------- */
+
+.walk-teaser { display: flex; align-items: center; gap: 0.8rem; margin: 0 0 1rem; text-decoration: none; color: inherit; border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.walk-teaser-icon { font-size: 1.7rem; }
+.walk-teaser-text { flex: 1; display: grid; gap: 0.25rem; min-width: 0; }
+.walk-teaser .streak-bar span, .walk-head .streak-bar span { background: var(--good); }
+.unit-walk { display: block; }
+.unit-walk.is-done { color: var(--good); font-weight: 700; }
+.walk-head .streak-bar { margin-top: 0.6rem; }
+.walk-dots { margin-bottom: 0.9rem; }
+.live-dot.is-ok { background: var(--good); color: var(--surface); border-color: var(--good); }
+.live-dot.is-unklar { background: var(--hard); color: var(--surface); border-color: var(--hard); }
+.walk-card { margin-bottom: 0.8rem; }
+.walk-folie { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.walk-title { margin: 0.2rem 0 0.7rem; font-size: 1.3rem; }
+.walk-slide { padding: 0.8rem 0.9rem; border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: 0 10px 10px 0; margin-bottom: 0.9rem; }
+.walk-notes h3 { font-size: 0.95rem; margin: 0.4rem 0 0.6rem; }
+.walk-notes .steps .step-text { font-family: inherit; }
+.walk-check { margin-top: 0.8rem; border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.8rem; }
+.walk-check summary { cursor: pointer; font-weight: 600; }
+.walk-check .antwort { margin-top: 0.6rem; }
+.walk-cards { margin-top: 0.8rem; }
+.walk-status { margin-bottom: 0.8rem; }
+.walk-status-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.walk-nav { justify-content: space-between; }
+.walk-summary h3 { margin-top: 0.6rem; font-size: 1rem; }
+.walk-unklar { padding-left: 1.1rem; display: grid; gap: 0.4rem; }
+.walk-unklar small { display: block; color: var(--muted); }
+.walk-mark { flex: 1; min-height: 46px; font-size: 0.95rem; }

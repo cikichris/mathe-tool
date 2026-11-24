@@ -8,13 +8,16 @@
 //    #/inhalte/vl01     eine Einheit mit allen Karten
 //    #/fortschritt      Klausurreife, Lernserie, Meilensteine
 //    #/skyline          Lernpunkte und Skyline
+//    #/fokus            Lernmodus (Pomodoro) mit Atemübung in der Pause
+//    #/atmen            Atemübung
+//    #/durchgang/vl12   Vorlesung Folie für Folie mit den handschriftlichen Schritten
 //    #/formelblatt      Formelblatt-Builder
 //    #/einstellungen    Klausurtermin, Login, Daten
 // =====================================================================
 import * as store from './store.js';
 import * as sync from './sync.js';
 import {
-  weeks, units, cards, cardById, unitById, sheetItems, uebungen, nextUebung, themen, themaById,
+  weeks, units, cards, cardById, unitById, sheetItems, uebungen, nextUebung, themen, themaById, abschnittById,
   TYP_LABEL, HERKUNFT_LABEL, HERKUNFT_KURZ, TEIL_LABEL,
 } from './content.js';
 import { fmt, esc, typeset } from './render.js';
@@ -30,6 +33,8 @@ import {
 } from './streak.js';
 import { readiness, readinessLabel, milestones, cardReadiness, THEMA_REIF } from './progress.js';
 import * as photos from './photos.js';
+import * as fokus from './fokus.js';
+import { MUSTER, PHASE_TEXT, breathAt } from './atmen.js';
 import {
   skylineSVG, floorsFor, SHOP, REGELN, PUNKTE_PRO_STOCK, PUNKTE_MISSION, PUNKTE_MEILENSTEIN,
 } from './skyline.js';
@@ -567,6 +572,10 @@ function milestoneContext() {
     aufgabenSicher: aufgaben.filter((c) => stage(stateOf(c.id)) === 'sicher').length,
     checks: checks.length,
     checksPerfect: checks.filter((c) => c.result === 'richtig' && !c.fehlt).length,
+    fokus: store.partTotal('f'),
+    walkOk: [...abschnittById.values()].filter((a) => store.walkStatus(a.id) === 'ok').length,
+    walkUnits: units.filter((u) => { const w = walkProgress(u); return w && w.ok === w.total; }).length,
+    walkUnitsTotal: units.filter((u) => u.durchgang).length,
     drillRight: Object.values(drillStats).reduce((sum, [r = 0]) => sum + r, 0),
     drillCovered: AUFGABEN.filter((a) => (drillStats[a.id]?.[0] || 0) > 0).length,
     drillTotal: AUFGABEN.length,
@@ -618,11 +627,13 @@ function weekList(detailed) {
       const meta = detailed
         ? `<span class="unit-meta">${plural(u.karten.length, 'Karte', 'Karten')}, davon ${plural(u.karten.filter((k) => k.typ === 'aufgabe').length, 'Aufgabe', 'Aufgaben')}</span>`
         : `<span class="unit-meta">${c.sicher} von ${u.karten.length} sicher</span>`;
+      const w = walkProgress(u);
+      const walkMeta = w ? `<span class="unit-meta unit-walk ${w.ok === w.total ? 'is-done' : ''}">📖 ${w.ok}/${w.total} verstanden</span>` : '';
       return `<a class="unit-row" href="#/inhalte/${u.id}">
         <span class="unit-kind unit-kind-${u.art}">${u.kurz}</span>
         <span class="unit-title">${esc(u.titel)}</span>
         ${progressBar(c)}
-        ${meta}
+        ${meta}${walkMeta}
       </a>`;
     }).join('');
     return `<section class="week"><h3>Woche ${w.nr} <span>${esc(w.titel)}</span></h3>${rows}</section>`;
@@ -682,6 +693,7 @@ function renderHome() {
     ${skylineTeaser()}
     <div class="panel today">${today}</div>
     ${drillTeaser()}
+    ${fokusTeaser()}
 
     ${weak.length ? `<h2>Schwachstellen</h2>
       <div class="panel">
@@ -970,6 +982,13 @@ function renderProgress() {
     </div>
     ${weekList(false)}
 
+    ${units.some((u) => u.durchgang) ? `<h2>Vorlesungen durchgehen</h2>
+    <ul class="panel mini-list">${units.filter((u) => u.durchgang).map((u) => {
+      const w = walkProgress(u);
+      const p = Math.round((w.ok / w.total) * 100);
+      return `<li class="mini-row"><a href="#/durchgang/${u.id}">${esc(u.kurz)}</a><span class="meter meter-thin"><span style="width:${p}%"></span></span><span class="mini-val">${w.ok}/${w.total}</span></li>`;
+    }).join('')}</ul>` : ''}
+
     <h2>Methode erkennen</h2>
     <ul class="panel mini-list">${drillRows}</ul>
 
@@ -1026,6 +1045,7 @@ function renderUnit(id) {
       <h1>${esc(unit.titel)}</h1>
       <p class="muted">${fmt(unit.ueberblick)}</p>
     </header>
+    ${walkTeaser(unit)}
     <div class="action-row">
       <button class="btn btn-primary" data-action="start-unit" data-unit="${unit.id}">Alle ${plural(unit.karten.length, 'Karte', 'Karten')} üben</button>
       ${tasks.length ? `<button class="btn" data-action="start-unit-tasks" data-unit="${unit.id}">Nur die ${plural(tasks.length, 'Aufgabe', 'Aufgaben')}</button>` : ''}
@@ -1033,6 +1053,144 @@ function renderUnit(id) {
     <p class="muted small">Freies Üben verschiebt den Wiederholungsplan nicht. Nur wenn du „Nochmal“ wählst, kommt die Karte früher wieder.</p>
     <div class="browse-list">${list}</div>
   </section>`);
+}
+
+// ---------------------------------------------------------------------
+//  Vorlesung durchgehen
+// ---------------------------------------------------------------------
+
+const PUNKTE_ABSCHNITT = 2;
+const walkUi = { unit: null, i: 0, steps: 1 };
+
+function walkProgress(unit) {
+  const list = unit.durchgang?.abschnitte;
+  if (!list?.length) return null;
+  const ok = list.filter((a) => store.walkStatus(a.id) === 'ok').length;
+  const unklar = list.filter((a) => store.walkStatus(a.id) === 'unklar').length;
+  return { ok, unklar, total: list.length };
+}
+
+function walkTeaser(unit) {
+  const w = walkProgress(unit);
+  if (!w) return '';
+  const label = w.ok === w.total ? 'Nochmal durchgehen' : w.ok || w.unklar ? 'Weiter durchgehen' : 'Vorlesung durchgehen';
+  return `<a class="panel walk-teaser" href="#/durchgang/${unit.id}">
+    <span class="walk-teaser-icon" aria-hidden="true">📖</span>
+    <span class="walk-teaser-text"><strong>${label}</strong><span class="muted small">Folie für Folie mit den handschriftlichen Zwischenschritten · ${w.ok} von ${plural(w.total, 'Abschnitt', 'Abschnitten')} verstanden${w.unklar ? `, ${w.unklar} unklar` : ''}</span>
+      <span class="streak-bar"><span style="width:${Math.round((w.ok / w.total) * 100)}%"></span></span></span>
+    <span class="prep-teaser-go" aria-hidden="true">›</span>
+  </a>`;
+}
+
+function openWalk(id) {
+  const unit = unitById.get(id);
+  if (!unit?.durchgang) { location.replace('#/inhalte'); return; }
+  if (walkUi.unit !== id) {
+    const list = unit.durchgang.abschnitte;
+    const first = list.findIndex((a) => store.walkStatus(a.id) !== 'ok');
+    Object.assign(walkUi, { unit: id, i: first === -1 ? 0 : first, steps: 1 });
+  }
+  renderWalk();
+}
+
+function walkStepsHtml(a, shown) {
+  const steps = (a.notizen || []).slice(0, shown);
+  return `<ol class="steps">${steps.map((st) => `<li><div class="step-text">${fmt(st.t)}</div>${st.w ? `<div class="step-why">${fmt(st.w)}</div>` : ''}</li>`).join('')}</ol>`;
+}
+
+function renderWalk() {
+  const unit = unitById.get(walkUi.unit);
+  const list = unit.durchgang.abschnitte;
+  const w = walkProgress(unit);
+  const chips = list.map((a, i) => {
+    const stt = store.walkStatus(a.id);
+    return `<button class="live-dot ${stt === 'ok' ? 'is-ok' : stt === 'unklar' ? 'is-unklar' : ''} ${i === walkUi.i ? 'is-current' : ''}" data-action="walk-go" data-i="${i}" aria-label="Abschnitt ${i + 1}: ${esc(a.titel)}${stt === 'ok' ? ', verstanden' : stt === 'unklar' ? ', unklar' : ''}">${i + 1}</button>`;
+  }).join('') + `<button class="live-dot walk-end-dot ${walkUi.i >= list.length ? 'is-current' : ''}" data-action="walk-go" data-i="${list.length}" aria-label="Zusammenfassung">✓</button>`;
+  const head = `<a class="back" href="#/inhalte/${unit.id}">${unit.kurz}</a>
+    <header class="page-head walk-head">
+      <p class="eyebrow">Vorlesung durchgehen · ${germanDate(unit.datum)}</p>
+      <h1>${esc(unit.titel)}</h1>
+      <span class="streak-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${w.total}" aria-valuenow="${w.ok}" aria-label="Verstanden"><span style="width:${Math.round((w.ok / w.total) * 100)}%"></span></span>
+      <p class="muted small">${w.ok} von ${plural(w.total, 'Abschnitt', 'Abschnitten')} verstanden${w.unklar ? ` · ${w.unklar} unklar` : ''}</p>
+    </header>
+    <nav class="live-dots walk-dots" aria-label="Abschnitte">${chips}</nav>`;
+
+  if (walkUi.i >= list.length) {
+    const unklar = list.filter((a) => store.walkStatus(a.id) === 'unklar');
+    const offen = list.filter((a) => !store.walkStatus(a.id));
+    const karten = unit.karten;
+    show(`<section class="walk">${head}
+      <div class="panel walk-summary">
+        <h2>${w.ok === w.total ? '🎉 Alles verstanden!' : 'Zwischenstand'}</h2>
+        <p>${w.ok} verstanden · ${unklar.length} unklar · ${offen.length} noch nicht bearbeitet</p>
+        ${unklar.length ? `<h3>Noch unklar</h3><ul class="walk-unklar">${unklar.map((a) => `<li><button class="link-btn" data-action="walk-go" data-i="${list.indexOf(a)}">Folie ${esc(a.folien)}: ${esc(a.titel)}</button>${store.walkNote(a.id) ? `<small>${esc(store.walkNote(a.id))}</small>` : ''}</li>`).join('')}</ul>
+          <button class="btn" data-action="walk-share">Unklares an Claude schicken</button>
+          <p class="muted small">Öffnet das Teilen-Menü mit einer Liste deiner offenen Fragen. Schick sie mir im Chat, dann erkläre ich die Stellen genauer und ergänze die Erklärungen hier.</p>` : ''}
+        <div class="action-row">
+          <button class="btn btn-primary" data-action="start-unit" data-unit="${unit.id}">Karten dieser Vorlesung üben (${karten.length})</button>
+          <a class="btn btn-quiet" href="#/inhalte/${unit.id}">Zur Übersicht</a>
+        </div>
+      </div>
+    </section>`);
+    return;
+  }
+
+  const a = list[walkUi.i];
+  const stt = store.walkStatus(a.id);
+  const total = (a.notizen || []).length;
+  const shown = stt === 'ok' ? total : Math.min(walkUi.steps, total);
+  const allShown = shown >= total;
+  const linked = (a.karten || []).map((id) => cardById.get(id)).filter(Boolean);
+  show(`<section class="walk">${head}
+    <article class="card walk-card">
+      <p class="walk-folie">Folie ${esc(a.folien)} · Abschnitt ${walkUi.i + 1} von ${list.length}</p>
+      <h2 class="walk-title">${esc(a.titel)}</h2>
+      ${a.folie ? `<div class="walk-slide">${fmt(a.folie)}</div>` : ''}
+      ${a.plot ? plotSVG(a.plot) : ''}
+      ${total ? `<div class="walk-notes">
+        <h3><span aria-hidden="true">✍️</span> Aus den Notizen der Vorlesung</h3>
+        ${walkStepsHtml(a, shown)}
+        ${allShown ? '' : `<div class="step-actions">
+          <button class="btn" data-action="walk-step">Nächster Schritt (${shown + 1}/${total})</button>
+          <button class="btn btn-quiet" data-action="walk-all">Alle zeigen</button>
+        </div>`}
+      </div>` : ''}
+      ${allShown && a.kern ? `<div class="merke"><span class="merke-label">Das Wichtigste</span>${fmt(a.kern)}</div>` : ''}
+      ${allShown && a.check ? `<details class="walk-check"><summary>Kurz selbst prüfen: ${fmt(a.check.frage)}</summary><div class="antwort">${fmt(a.check.antwort)}</div></details>` : ''}
+      ${allShown && linked.length ? `<button class="btn btn-quiet walk-cards" data-action="walk-cards">Passende ${plural(linked.length, 'Karte', 'Karten')} üben</button>` : ''}
+    </article>
+    <div class="walk-status">
+      <p class="rating-q">${stt ? 'Dein Stand' : 'Hast du den Abschnitt verstanden?'}</p>
+      <div class="prep-status-row walk-status-row">
+        <button class="prep-status prep-status-selbst walk-mark ${stt === 'ok' ? 'is-on' : ''}" data-action="walk-mark" data-s="ok" aria-pressed="${stt === 'ok'}">✓ Verstanden</button>
+        <button class="prep-status prep-status-hilfe walk-mark ${stt === 'unklar' ? 'is-on' : ''}" data-action="walk-mark" data-s="unklar" aria-pressed="${stt === 'unklar'}">? Noch unklar</button>
+      </div>
+      ${stt === 'unklar' ? `<label class="prep-note-label">Was genau ist unklar?<textarea class="prep-note" rows="2" data-walknote="${a.id}" placeholder="z. B. Warum fällt hier das x weg?">${esc(store.walkNote(a.id))}</textarea></label>` : ''}
+    </div>
+    <div class="action-row walk-nav">
+      <button class="btn btn-quiet" data-action="walk-prev" ${walkUi.i === 0 ? 'disabled' : ''}>‹ Zurück</button>
+      <button class="btn" data-action="walk-next">${walkUi.i + 1 < list.length ? 'Weiter ›' : 'Zusammenfassung ›'}</button>
+    </div>
+  </section>`);
+}
+
+function walkMove(i) {
+  const list = unitById.get(walkUi.unit).durchgang.abschnitte;
+  walkUi.i = Math.max(0, Math.min(list.length, i));
+  walkUi.steps = 1;
+  renderWalk();
+  window.scrollTo(0, 0);
+}
+
+async function shareWalk() {
+  const unit = unitById.get(walkUi.unit);
+  const unklar = unit.durchgang.abschnitte.filter((a) => store.walkStatus(a.id) === 'unklar');
+  const text = `Fragen zu ${unit.kurz} (${unit.titel}), Mathe-Tool:\n${unklar.map((a) => `- Folie ${a.folien}, ${a.titel} (${a.id})${store.walkNote(a.id) ? `: ${store.walkNote(a.id)}` : ''}`).join('\n')}`;
+  try {
+    if (navigator.share) { await navigator.share({ text, title: 'Fragen zur Vorlesung' }); return; }
+  } catch (err) { if (err?.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); } catch { /* egal */ }
+  window.alert(`Der Text für Claude ist kopiert:\n\n${text}`);
 }
 
 // ---------------------------------------------------------------------
@@ -1651,6 +1809,265 @@ function drillTeaser() {
 }
 
 // ---------------------------------------------------------------------
+//  Lernmodus (Pomodoro) und Atemübungen
+// ---------------------------------------------------------------------
+
+const PUNKTE_FOKUS = 3;
+const fokusConf = () => ({ ...fokus.DEFAULTS, ...store.settings().fokus });
+
+let audio = null;
+/** Muss bei einem Tipp aufgerufen werden, sonst bleibt das Handy stumm (iOS). */
+function unlockAudio() {
+  try {
+    audio ||= new (globalThis.AudioContext || globalThis.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+  } catch { audio = null; }
+}
+
+/** Sanfter Gong: zwei Sinustöne, die ausklingen. */
+function chime(high = true) {
+  if (!audio || !fokusConf().sound) return;
+  const now = audio.currentTime;
+  (high ? [660, 990] : [523, 784]).forEach((f, i) => {
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, now + i * 0.18);
+    g.gain.exponentialRampToValueAtTime(0.25, now + i * 0.18 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 1.6);
+    o.connect(g).connect(audio.destination);
+    o.start(now + i * 0.18);
+    o.stop(now + i * 0.18 + 1.7);
+  });
+}
+
+function fokusTeaser() {
+  const f = fokus.status(fokusConf());
+  const c = fokusConf();
+  const live = f.running ? `<span class="muted"> · ${f.phase === 'fokus' ? 'Fokus' : 'Pause'} läuft, noch ${fokus.mmss(f.remaining)}</span>` : `<span class="muted"> · ${c.work} Min. lernen, ${c.brk} Min. Pause</span>`;
+  return `<div class="calm-row">
+    <a class="panel calm-tile" href="#/fokus"><span class="calm-icon" aria-hidden="true">🍅</span><span><strong>Lernmodus</strong>${live}</span></a>
+    <a class="panel calm-tile" href="#/atmen"><span class="calm-icon" aria-hidden="true">🌬️</span><span><strong>Durchatmen</strong><span class="muted"> · 2 Minuten gegen Stress</span></span></a>
+  </div>`;
+}
+
+function ringSvg(frac, cls = '') {
+  const r = 52;
+  const len = 2 * Math.PI * r;
+  return `<svg class="fokus-ring ${cls}" viewBox="0 0 120 120" aria-hidden="true">
+    <circle class="ring-bg" cx="60" cy="60" r="${r}"/>
+    <circle class="ring-fg" id="fokus-ring" cx="60" cy="60" r="${r}" stroke-dasharray="${len.toFixed(1)}" stroke-dashoffset="${(len * (1 - frac)).toFixed(1)}" transform="rotate(-90 60 60)"/>
+  </svg>`;
+}
+
+const PHASE_LABEL = { aus: 'Bereit', bereit: 'Pause vorbei', fokus: 'Fokus', pause: 'Pause' };
+
+function renderFokus() {
+  const c = fokusConf();
+  const f = fokus.status(c);
+  const today = dateStr();
+  const blocks = store.partsToday(today).f || 0;
+  const frac = f.total ? 1 - f.remaining / f.total : 0;
+  const time = f.running ? fokus.mmss(f.remaining) : `${c.work}:00`;
+  let controls;
+  if (f.paused) {
+    controls = '<button class="btn btn-primary" data-action="fokus-resume">Weiter</button><button class="btn btn-quiet" data-action="fokus-stop">Beenden</button>';
+  } else if (f.phase === 'fokus') {
+    controls = '<button class="btn" data-action="fokus-pause">Anhalten</button><button class="btn btn-quiet" data-action="fokus-skip">Jetzt Pause machen</button>';
+  } else if (f.phase === 'pause') {
+    controls = '<button class="btn" data-action="fokus-pause">Anhalten</button><button class="btn btn-quiet" data-action="fokus-skip">Pause beenden</button>';
+  } else {
+    controls = `<button class="btn btn-primary btn-wide" data-action="fokus-start">${f.phase === 'bereit' ? `Nächster Fokusblock (${c.work} Min.)` : `Fokusblock starten (${c.work} Min.)`}</button>`;
+  }
+  const hint = {
+    aus: `${c.work} Minuten konzentriert lernen, danach ${c.brk} Minuten Pause mit Atemübung. Nach ${c.every} Blöcken gibt es eine lange Pause (${c.long} Min.).`,
+    bereit: 'Die Pause ist vorbei. Starte den nächsten Block, wenn du bereit bist.',
+    fokus: 'Handy weglegen, nur diese App. Ein guter Start ist die Tagesmission.',
+    pause: f.long ? 'Lange Pause: Aufstehen, etwas trinken, frische Luft.' : 'Kurz weg vom Lernstoff. Mach die Atemübung oder streck dich.',
+  }[f.paused ? f.phase : f.phase];
+  const pauseBreath = f.phase === 'pause' && !f.paused;
+  show(`<section class="fokus-page">
+    <header class="page-head">
+      <p class="eyebrow">${esc(COURSE_NAME)}</p>
+      <h1>Lernmodus</h1>
+    </header>
+    <div class="panel fokus-main phase-${f.phase} ${f.paused ? 'is-paused' : ''}">
+      <div class="fokus-dial">
+        ${ringSvg(frac)}
+        <div class="fokus-dial-text"><span class="fokus-phase" id="fokus-phase">${f.paused ? 'Angehalten' : PHASE_LABEL[f.phase]}</span><strong id="fokus-time">${time}</strong><span class="muted small">Block ${f.phase === 'fokus' ? f.block + 1 : Math.max(1, f.block)}</span></div>
+      </div>
+      <p class="fokus-hint">${hint}</p>
+      <div class="action-row fokus-controls">${controls}</div>
+      ${f.phase === 'fokus' && !f.paused ? '<div class="action-row"><a class="btn btn-quiet" href="#/">Zur Tagesmission</a><a class="btn btn-quiet" href="#/inhalte">Zu den Inhalten</a></div>' : ''}
+      <p class="fokus-today" aria-label="Heute ${blocks} Fokusblöcke">${blocks ? `${'🍅'.repeat(Math.min(blocks, 12))}${blocks > 12 ? ` +${blocks - 12}` : ''} <span class="muted small">heute ${plural(blocks, 'Block', 'Blöcke')}</span>` : '<span class="muted small">Heute noch kein Fokusblock</span>'}</p>
+    </div>
+
+    ${pauseBreath ? `<h2>Atemübung für die Pause</h2>${breathBlock(c.breath)}` : ''}
+
+    <details class="panel fokus-settings">
+      <summary>Zeiten und Atemübung einstellen</summary>
+      <div class="form">
+        ${fokusSelect('work', 'Fokusblock', [15, 20, 25, 30, 45, 50], c.work, 'Min.')}
+        ${fokusSelect('brk', 'Kurze Pause', [3, 5, 7, 10], c.brk, 'Min.')}
+        ${fokusSelect('long', 'Lange Pause', [10, 15, 20, 30], c.long, 'Min.')}
+        ${fokusSelect('every', 'Lange Pause nach', [2, 3, 4, 5, 6], c.every, 'Blöcken')}
+        <label>Atemübung in der Pause
+          <select data-fokus="breath">${Object.entries(MUSTER).map(([k, m]) => `<option value="${k}" ${c.breath === k ? 'selected' : ''}>${m.kurz} (${m.titel})</option>`).join('')}</select>
+        </label>
+        <label class="check-row"><input type="checkbox" data-fokus="sound" ${c.sound ? 'checked' : ''}> Gong am Ende einer Phase</label>
+      </div>
+    </details>
+    <p class="muted small explain">Für jeden geschafften Fokusblock gibt es ${PUNKTE_FOKUS} Punkte für deine Skyline. Der Timer läuft weiter, auch wenn du in der App andere Seiten öffnest. Ist das Handy gesperrt, ertönt kein Gong. Beim Zurückkommen stimmt die Zeit aber.</p>
+  </section>`);
+  if (pauseBreath) startBreath(c.breath, 0);
+}
+
+function fokusSelect(key, label, values, current, unit) {
+  return `<label>${label}<select data-fokus="${key}">${values.map((v) => `<option value="${v}" ${Number(current) === v ? 'selected' : ''}>${v} ${unit}</option>`).join('')}</select></label>`;
+}
+
+/** Bei jedem Tick: Phasenwechsel erkennen, zählen, melden; Anzeige auffrischen. */
+let lastFokusPhase = null;
+function tickFokus() {
+  const c = fokusConf();
+  const events = fokus.advance(c);
+  for (const ev of events) {
+    if (ev.type === 'fokus-ende') {
+      store.countPart('f');
+      store.earn(null, PUNKTE_FOKUS);
+      chime(true);
+      navigator.vibrate?.([200, 100, 200]);
+      toast(`🍅 <strong>Fokusblock geschafft!</strong> +${PUNKTE_FOKUS} Punkte. Jetzt ${fokus.status(c).long ? 'lange ' : ''}Pause: <a href="#/fokus">Atemübung</a>`, 'is-good');
+    } else if (ev.type === 'pause-ende') {
+      chime(false);
+      navigator.vibrate?.(300);
+      toast('⏰ <strong>Pause vorbei.</strong> <a href="#/fokus">Nächster Block</a>');
+    }
+  }
+  const f = fokus.status(c);
+  const name = currentRoute().name;
+  // Schwebende Anzeige auf allen anderen Seiten
+  let pill = document.getElementById('fokus-pill');
+  const showPill = (f.running || f.phase === 'bereit') && name !== 'fokus';
+  if (showPill) {
+    if (!pill) {
+      pill = document.createElement('a');
+      pill.id = 'fokus-pill';
+      pill.href = '#/fokus';
+      document.body.append(pill);
+    }
+    pill.className = `fokus-pill phase-${f.phase} ${f.paused ? 'is-paused' : ''}`;
+    pill.textContent = f.phase === 'bereit' ? '🍅 Pause vorbei' : `${f.phase === 'fokus' ? '🍅' : '🌬️'} ${f.paused ? 'angehalten ' : ''}${fokus.mmss(f.remaining)}`;
+    pill.setAttribute('aria-label', `Lernmodus: ${PHASE_LABEL[f.phase]}${f.running ? `, noch ${fokus.mmss(f.remaining)}` : ''}`);
+  } else pill?.remove();
+  if (name === 'fokus') {
+    const key = `${f.phase}-${f.paused}`;
+    if (key !== lastFokusPhase) { lastFokusPhase = key; renderFokus(); return; }
+    const t = document.getElementById('fokus-time');
+    if (t && f.running) t.textContent = fokus.mmss(f.remaining);
+    const ring = document.getElementById('fokus-ring');
+    if (ring && f.total) {
+      const len = 2 * Math.PI * 52;
+      ring.setAttribute('stroke-dashoffset', (len * (f.remaining / f.total)).toFixed(1));
+    }
+  } else lastFokusPhase = null;
+}
+
+// ---- Atemübung ----
+
+let breath = null; // { m, start, dur, timer }
+
+function breathBlock(m) {
+  return `<div class="panel breath" id="breath">
+    <div class="breath-stage">
+      <div class="breath-circle" id="breath-circle"></div>
+      <div class="breath-text"><strong id="breath-phase">Bereit</strong><span id="breath-count"></span></div>
+    </div>
+    <p class="breath-info"><strong>${esc(MUSTER[m].kurz)} (${esc(MUSTER[m].titel)}):</strong> ${esc(MUSTER[m].text)}</p>
+    <p class="muted small" id="breath-meta"></p>
+  </div>`;
+}
+
+function stopBreath() {
+  if (breath?.timer) clearInterval(breath.timer);
+  breath = null;
+}
+
+/** Startet die Animation. dur = Sekunden (0 = bis zum Stoppen). */
+function startBreath(m, dur) {
+  stopBreath();
+  breath = { m, start: Date.now(), dur, last: -1, timer: null };
+  const step = () => {
+    const circle = document.getElementById('breath-circle');
+    if (!circle || !breath) { stopBreath(); return; }
+    const ms = Date.now() - breath.start;
+    if (breath.dur && ms >= breath.dur * 1000) {
+      document.getElementById('breath-phase').textContent = 'Geschafft';
+      document.getElementById('breath-count').textContent = '';
+      circle.style.transition = 'transform 1.5s ease';
+      circle.style.transform = 'scale(0.75)';
+      circle.classList.add('is-done');
+      const meta = document.getElementById('breath-meta');
+      if (meta) meta.textContent = 'Gut gemacht. Spür kurz nach, wie es dir jetzt geht.';
+      const row = document.querySelector('.atmen-page .action-row');
+      if (row) row.innerHTML = '<button class="btn btn-primary btn-wide" data-action="atmen-start">Nochmal</button>';
+      stopBreath();
+      navigator.vibrate?.(150);
+      return;
+    }
+    const b = breathAt(m, ms);
+    const key = `${b.cycle}-${b.index}`;
+    if (key !== breath.last) {
+      breath.last = key;
+      const target = b.art === 'ein' ? 1 : b.art === 'aus' ? 0.5 : (b.art === 'halten' ? 1 : 0.5);
+      const remaining = (1 - b.progress) * b.sec;
+      circle.style.transition = `transform ${remaining.toFixed(2)}s ${b.art === 'ein' || b.art === 'aus' ? 'ease-in-out' : 'linear'}`;
+      circle.style.transform = `scale(${target})`;
+      circle.dataset.art = b.art;
+      document.getElementById('breath-phase').textContent = PHASE_TEXT[b.art];
+      if (b.cycle > 0 || b.index > 0) navigator.vibrate?.(30);
+    }
+    document.getElementById('breath-count').textContent = String(b.left);
+    const meta = document.getElementById('breath-meta');
+    if (meta) meta.textContent = breath.dur ? `Noch ${fokus.mmss(breath.dur * 1000 - ms)} · Atemzug ${b.cycle + 1}` : `Atemzug ${b.cycle + 1}`;
+  };
+  const circle = document.getElementById('breath-circle');
+  if (circle) { circle.style.transition = 'none'; circle.style.transform = 'scale(0.5)'; }
+  requestAnimationFrame(() => requestAnimationFrame(step));
+  breath.timer = setInterval(step, 200);
+}
+
+let atmenMuster = null;
+let atmenDauer = 120;
+
+function renderAtmenRunning() {
+  breath = { pending: true };
+  renderAtmen();
+  startBreath(atmenMuster, atmenDauer);
+}
+
+function renderAtmen() {
+  atmenMuster ||= fokusConf().breath;
+  const running = Boolean(breath);
+  show(`<section class="atmen-page">
+    <a class="back" href="#/">Heute</a>
+    <header class="page-head">
+      <p class="eyebrow">Gegen Prüfungsstress</p>
+      <h1>Durchatmen</h1>
+      <p class="muted">Folge dem Kreis: Er wird beim Einatmen größer und beim Ausatmen kleiner. Atme durch die Nase ein und ruhig aus. Schon zwei Minuten senken spürbar die Anspannung, auch direkt vor der Klausur.</p>
+    </header>
+    <nav class="chip-row" aria-label="Atemmuster">${Object.entries(MUSTER).map(([k, m]) => `<button class="chip ${atmenMuster === k ? 'is-current' : ''}" data-action="atmen-muster" data-m="${k}">${esc(m.kurz)} <span>${esc(m.titel)}</span></button>`).join('')}</nav>
+    <nav class="chip-row" aria-label="Dauer">${[1, 2, 3, 5].map((n) => `<button class="chip ${atmenDauer === n * 60 ? 'is-current' : ''}" data-action="atmen-dauer" data-n="${n}">${n} Min.</button>`).join('')}</nav>
+    ${breathBlock(atmenMuster)}
+    <div class="action-row">
+      ${running ? '<button class="btn" id="breath-stop" data-action="atmen-stop">Stopp</button>' : `<button class="btn btn-primary btn-wide" data-action="atmen-start">Atemübung starten (${atmenDauer / 60} Min.)</button>`}
+    </div>
+    <p class="muted small explain">Wird dir schwindelig, atme einfach normal weiter. Die Übung soll sich angenehm anfühlen, nicht anstrengend.</p>
+  </section>`);
+}
+
+// ---------------------------------------------------------------------
 //  Formelblatt
 // ---------------------------------------------------------------------
 
@@ -1810,6 +2227,7 @@ function route() {
   }
   const { name, arg } = currentRoute();
   document.body.classList.remove('in-session', 'in-live');
+  if (name !== 'atmen' && name !== 'fokus') stopBreath();
   if (name !== 'live') keepScreenOn(false);
   document.querySelectorAll('.tabs a').forEach((a) => {
     const target = a.getAttribute('href').replace(/^#\/?/, '');
@@ -1832,6 +2250,9 @@ function route() {
   else if (name === 'methoden') renderDrill();
   else if (name === 'fortschritt') renderProgress();
   else if (name === 'skyline') renderSkyline();
+  else if (name === 'fokus') renderFokus();
+  else if (name === 'durchgang') openWalk(arg);
+  else if (name === 'atmen') renderAtmen();
   else if (name === 'formelblatt') renderSheet();
   else if (name === 'einstellungen') renderSettings();
   else renderHome();
@@ -1856,6 +2277,39 @@ const actions = {
     if (next) startMissionPart(next.id);
   },
   'mission-part': (el) => startMissionPart(el.dataset.part),
+  'walk-go': (el) => walkMove(Number(el.dataset.i)),
+  'walk-prev': () => walkMove(walkUi.i - 1),
+  'walk-next': () => walkMove(walkUi.i + 1),
+  'walk-step': () => { walkUi.steps += 1; const y = window.scrollY; renderWalk(); window.scrollTo(0, y); },
+  'walk-all': () => { walkUi.steps = Infinity; const y = window.scrollY; renderWalk(); window.scrollTo(0, y); },
+  'walk-mark': (el) => {
+    const a = unitById.get(walkUi.unit).durchgang.abschnitte[walkUi.i];
+    const now = store.walkStatus(a.id);
+    const next = now === el.dataset.s ? '' : el.dataset.s;
+    const first = store.setWalkStatus(a.id, next);
+    if (first) {
+      store.earn(a.klausurthema, PUNKTE_ABSCHNITT);
+      toast(`📖 Verstanden · +${PUNKTE_ABSCHNITT} Punkte`);
+    }
+    if (next === 'ok') walkMove(walkUi.i + 1);
+    else { const y = window.scrollY; renderWalk(); window.scrollTo(0, y); document.querySelector('[data-walknote]')?.focus(); }
+  },
+  'walk-cards': () => {
+    const a = unitById.get(walkUi.unit).durchgang.abschnitte[walkUi.i];
+    startSession(a.karten.map((id) => cardById.get(id)).filter(Boolean), 'durchgang', a.titel);
+  },
+  'walk-share': () => shareWalk(),
+  'fokus-start': () => { unlockAudio(); fokus.startFocus(fokusConf(), dateStr()); tickFokus(); },
+  'fokus-pause': () => { fokus.pause(); tickFokus(); },
+  'fokus-resume': () => { unlockAudio(); fokus.resume(); tickFokus(); },
+  'fokus-skip': () => { fokus.skip(fokusConf()); tickFokus(); },
+  'fokus-stop': () => { fokus.stop(); tickFokus(); renderFokus(); },
+  'atmen-muster': (el) => { stopBreath(); atmenMuster = el.dataset.m; renderAtmen(); },
+  'atmen-dauer': (el) => { stopBreath(); atmenDauer = Number(el.dataset.n) * 60; renderAtmen(); },
+  'atmen-start': () => {
+    renderAtmenRunning();
+  },
+  'atmen-stop': () => { stopBreath(); renderAtmen(); },
   'sky-buy': (el) => {
     const item = SHOP.find((x) => x.id === el.dataset.id);
     const pts = pointsSummary();
@@ -2039,6 +2493,17 @@ document.addEventListener('change', async (event) => {
     el.value = n;
     store.setSettings({ dailyGoal: n });
   }
+  if (el.dataset.fokus) {
+    const key = el.dataset.fokus;
+    const value = el.type === 'checkbox' ? el.checked : key === 'breath' ? el.value : Number(el.value);
+    store.setSettings({ fokus: { ...store.settings().fokus, [key]: value } });
+    if (currentRoute().name === 'fokus') {
+      const open = document.querySelector('.fokus-settings')?.open;
+      renderFokus();
+      if (open) document.querySelector('.fokus-settings').open = true;
+    }
+    return;
+  }
   if (el.dataset.setting === 'weekGoal') {
     const n = Math.max(1, Math.min(7, Math.round(Number(el.value) || DEFAULT_WEEK_GOAL)));
     el.value = n;
@@ -2052,14 +2517,25 @@ document.addEventListener('change', async (event) => {
 });
 
 let noteTimer = null;
+let walkNoteTimer = null;
 document.addEventListener('input', (event) => {
   const el = event.target;
+  if (el.dataset?.walknote) {
+    clearTimeout(walkNoteTimer);
+    walkNoteTimer = setTimeout(() => store.setWalkNote(el.dataset.walknote, el.value), 600);
+    return;
+  }
   if (!el.dataset?.note) return;
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => store.setPrepNote(el.dataset.note, el.value), 600);
 });
 document.addEventListener('focusout', (event) => {
   const el = event.target;
+  if (el.dataset?.walknote) {
+    clearTimeout(walkNoteTimer);
+    if (store.walkNote(el.dataset.walknote) !== el.value) store.setWalkNote(el.dataset.walknote, el.value);
+    return;
+  }
   if (!el.dataset?.note) return;
   clearTimeout(noteTimer);
   if (store.prepNote(el.dataset.note) !== el.value) store.setPrepNote(el.dataset.note, el.value);
@@ -2158,6 +2634,9 @@ const authLink = AUTH_HASH.test(location.hash) ? new URLSearchParams(location.ha
 route();
 store.onChange(watchProgress);
 watchProgress();
+tickFokus();
+setInterval(tickFokus, 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tickFokus(); });
 sync.init().then(() => {
   if (!authLink) return;
   const type = authLink.get('type');

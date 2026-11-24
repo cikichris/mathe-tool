@@ -248,7 +248,7 @@ test('Tagesmission und Meilensteine: Zählen und Abgleich', () => {
   store.countPart('k', '2026-11-23');
   store.countPart('k', '2026-11-23');
   store.countPart('m', '2026-11-23');
-  assert.deepEqual(store.partsToday('2026-11-23'), { k: 2, a: 0, m: 1 });
+  assert.deepEqual(store.partsToday('2026-11-23'), { k: 2, a: 0, m: 1, f: 0 });
   store.markMission('2026-11-23');
   store.bump('ohneTipp');
   assert.deepEqual(store.award(['serie-3', 'mission-1'], '2026-11-23'), ['serie-3', 'mission-1']);
@@ -265,7 +265,7 @@ test('Tagesmission und Meilensteine: Zählen und Abgleich', () => {
     { key: 'activity', value: { days: {}, parts: { '2026-11-23': { k: 5, a: 1, m: 0 } }, mission: { '2026-11-22': true } }, updated_at: new Date().toISOString() },
     { key: 'badges', value: { got: { 'karten-25': '2026-11-20', 'serie-3': '2026-11-21' }, cnt: { ohneTipp: 3 } }, updated_at: new Date().toISOString() },
   ] });
-  assert.deepEqual(store.partsToday('2026-11-23'), { k: 5, a: 1, m: 1 });
+  assert.deepEqual(store.partsToday('2026-11-23'), { k: 5, a: 1, m: 1, f: 0 });
   assert.equal(store.missionDays()['2026-11-22'], true);
   assert.equal(store.badgesGot()['serie-3'], '2026-11-21');
   assert.equal(store.badgesGot()['mission-1'], '2026-11-23');
@@ -341,4 +341,56 @@ test('Skyline: Punkte sammeln, Startkapital, Extras und Abgleich', async () => {
     assert.ok(svg.startsWith('<svg') && !/NaN|undefined/.test(svg), 'SVG ohne NaN');
   }
   assert.equal(new Set(SHOP.map((x) => x.id)).size, SHOP.length);
+});
+
+test('Vorlesung durchgehen: Stand speichern, Punkte nur beim ersten Mal, Abgleich', () => {
+  store.resetAll();
+  assert.equal(store.setWalkStatus('vl12-d01', 'ok'), true);
+  assert.equal(store.setWalkStatus('vl12-d01', ''), false);
+  assert.equal(store.setWalkStatus('vl12-d01', 'ok'), false, 'kein zweites Mal Punkte');
+  store.setWalkStatus('vl12-d02', 'unklar');
+  store.setWalkNote('vl12-d02', 'Warum minus?');
+  assert.equal(store.walkStatus('vl12-d02'), 'unklar');
+  assert.equal(store.walkNote('vl12-d02'), 'Warum minus?');
+  const box = store.outbox();
+  assert.equal(box.userData.find((r) => r.key === 'walk').value.status['vl12-d01'], 'ok');
+  store.markPushed(box);
+  assert.equal(store.hasUnsynced(), false);
+  store.applyRemote({ userData: [{ key: 'walk', value: { status: { 'vl11-d01': 'ok' }, notes: {} }, updated_at: new Date(Date.now() + 60000).toISOString() }] });
+  assert.equal(store.walkStatus('vl11-d01'), 'ok');
+});
+
+test('Lernmodus: Fokus, Pause, Weiterzählen über gesperrte Zeit', async () => {
+  const fokus = await import('../js/fokus.js');
+  const { breathAt, cycleSeconds } = await import('../js/atmen.js');
+  fokus._reset();
+  const c = { work: 20, brk: 5, long: 15, every: 2 };
+  const t0 = Date.UTC(2026, 10, 24, 9, 0);
+  fokus.startFocus(c, '2026-11-24', t0);
+  assert.equal(fokus.status(c, t0 + 60000).remaining, 19 * 60000);
+  // Handy 30 Minuten gesperrt: Fokus (20) und Pause (5) sind vorbei
+  const ev = fokus.advance(c, t0 + 30 * 60000);
+  assert.deepEqual(ev.map((e) => e.type), ['fokus-ende', 'pause-ende']);
+  assert.equal(fokus.status(c, t0 + 30 * 60000).phase, 'bereit');
+  // Zweiter Block: danach lange Pause (every = 2)
+  const t1 = t0 + 31 * 60000;
+  fokus.startFocus(c, '2026-11-24', t1);
+  fokus.advance(c, t1 + 20 * 60000);
+  const st = fokus.status(c, t1 + 20 * 60000);
+  assert.equal(st.phase, 'pause');
+  assert.equal(st.long, true);
+  assert.equal(st.remaining, 15 * 60000);
+  // Anhalten friert die Zeit ein
+  fokus.pause(t1 + 21 * 60000);
+  assert.deepEqual(fokus.advance(c, t1 + 90 * 60000), []);
+  fokus.resume(t1 + 90 * 60000);
+  assert.equal(fokus.status(c, t1 + 90 * 60000).remaining, 14 * 60000);
+  fokus.stop();
+  assert.equal(fokus.status(c).phase, 'aus');
+  // Atemmuster 4 ein, 6 aus
+  assert.equal(cycleSeconds('ruhig'), 10);
+  assert.equal(breathAt('ruhig', 1000).art, 'ein');
+  assert.equal(breathAt('ruhig', 5000).art, 'aus');
+  assert.equal(breathAt('ruhig', 12000).cycle, 1);
+  assert.equal(breathAt('box', 13000).art, 'leer');
 });

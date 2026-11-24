@@ -18,6 +18,8 @@ export const REGELN = [
   ['… ohne Tipp', '+2'],
   ['Eigene Lösung geprüft', '5'],
   ['Methode richtig erkannt', '1'],
+  ['Fokusblock geschafft', '3'],
+  ['Vorlesungsabschnitt verstanden', '2'],
   ['Tagesmission geschafft', String(PUNKTE_MISSION)],
   ['Meilenstein erreicht', String(PUNKTE_MEILENSTEIN)],
 ];

@@ -76,6 +76,12 @@ export function milestones(ctx) {
     { id: 'pruefen-10', gruppe: 'Rechnen', icon: '📷', titel: 'Zehn Kontrollen', text: '10 eigene Lösungen geprüft', p: [ctx.checks, 10] },
     { id: 'fehlerfrei', gruppe: 'Rechnen', icon: '💯', titel: 'Fehlerfrei', text: 'Eigene Lösung geprüft: Ergebnis richtig, kein Schritt fehlt', p: [ctx.checksPerfect, 1] },
 
+    { id: 'durchgang-1', gruppe: 'Vorlesungen', icon: '📖', titel: 'Eine Vorlesung verstanden', text: 'Alle Abschnitte einer Vorlesung als verstanden markiert', p: [ctx.walkUnits || 0, 1] },
+    { id: 'durchgang-25', gruppe: 'Vorlesungen', icon: '📖', titel: '25 Abschnitte', text: '25 Vorlesungsabschnitte verstanden', p: [ctx.walkOk || 0, 25] },
+    { id: 'durchgang-alle', gruppe: 'Vorlesungen', icon: '🎓', titel: 'Alle Vorlesungen', text: 'Jede Vorlesung komplett durchgearbeitet', p: [ctx.walkUnits || 0, ctx.walkUnitsTotal || 1] },
+    { id: 'fokus-1', gruppe: 'Lernmodus', icon: '🍅', titel: 'Im Flow', text: 'Den ersten Fokusblock durchgezogen', p: [ctx.fokus || 0, 1] },
+    { id: 'fokus-10', gruppe: 'Lernmodus', icon: '🍅', titel: 'Zehn Fokusblöcke', text: '10 Fokusblöcke geschafft', p: [ctx.fokus || 0, 10] },
+    { id: 'fokus-50', gruppe: 'Lernmodus', icon: '🧘', titel: 'Fokusprofi', text: '50 Fokusblöcke geschafft', p: [ctx.fokus || 0, 50] },
     { id: 'methode-50', gruppe: 'Methode erkennen', icon: '⚡', titel: '50 erkannt', text: '50-mal die richtige Methode gewählt', p: [ctx.drillRight, 50] },
     { id: 'methode-alle', gruppe: 'Methode erkennen', icon: '⚡', titel: 'Alle Methoden', text: 'Jede Aufgabe im Schnelltraining einmal richtig', p: [ctx.drillCovered, ctx.drillTotal] },
 

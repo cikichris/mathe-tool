@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { WOCHEN } from '../content/index.js';
 import { METHODEN, GRUPPEN, AUFGABEN } from '../content/methoden.js';
 import { THEMEN, OHNE_THEMA } from '../content/themen.js';
+import { DURCHGAENGE } from '../content/durchgang/index.js';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -146,6 +147,30 @@ const byType = {};
 for (const c of allCards) byType[c.typ] = (byType[c.typ] || 0) + 1;
 console.log(`${allCards.length} Karten, ${sheetIds.size} Formelblatt-Einträge, ${formulas} Formeln geprüft`);
 console.log(Object.entries(byType).map(([t, n]) => `${t}: ${n}`).join(' · '));
+// Vorlesung durchgehen
+const walkIds = new Set();
+for (const [unitId, d] of Object.entries(DURCHGAENGE)) {
+  const unit = WOCHEN.flatMap((w) => w.einheiten).find((u) => u.id === unitId);
+  if (!unit) errors.push(`durchgang/${unitId}: Einheit gibt es nicht`);
+  if (!d.abschnitte?.length) errors.push(`durchgang/${unitId}: keine Abschnitte`);
+  for (const a of d.abschnitte || []) {
+    const w = `durchgang/${a.id}`;
+    if (!a.id?.startsWith(`${unitId}-d`)) errors.push(`${w}: id muss mit "${unitId}-d" beginnen`);
+    if (walkIds.has(a.id)) errors.push(`${w}: id doppelt`);
+    walkIds.add(a.id);
+    for (const key of ['folien', 'titel', 'kern']) if (!a[key]) errors.push(`${w}: Feld "${key}" fehlt`);
+    const texts = [a.titel, a.folie, a.kern, ...(a.notizen || []).flatMap((n) => [n.t, n.w]), a.check?.frage, a.check?.antwort].filter(Boolean);
+    if (texts.some((t) => /[\t\f\v\b\r]/.test(t))) errors.push(`${w}: Steuerzeichen im Text (String ohne r\`…\` mit Backslash?)`);
+    checkMath(`${w}.titel`, a.titel);
+    checkMath(`${w}.folie`, a.folie);
+    checkMath(`${w}.kern`, a.kern);
+    (a.notizen || []).forEach((n, i) => { checkMath(`${w}.notizen[${i}].t`, n.t); checkMath(`${w}.notizen[${i}].w`, n.w); });
+    if (a.check) { checkMath(`${w}.check.frage`, a.check.frage); checkMath(`${w}.check.antwort`, a.check.antwort); }
+    for (const id of a.karten || []) if (!ids.has(id)) errors.push(`${w}: Karte "${id}" gibt es nicht`);
+  }
+}
+console.log(`Vorlesung durchgehen: ${Object.keys(DURCHGAENGE).length} Vorlesungen, ${walkIds.size} Abschnitte`);
+
 if (errors.length) {
   console.error(`\n${errors.length} Fehler:\n- ${errors.join('\n- ')}`);
   process.exit(1);

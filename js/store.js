@@ -32,6 +32,8 @@ function blank() {
     badges: { got: {}, cnt: {}, upd: 0 }, // Meilensteine: id -> Datum; cnt: Zähler (z. B. ohneTipp)
     badgesDirty: false,
     missionPick: { d: '', card: '' },    // Aufgabe des Tages (nur auf diesem Gerät)
+    walk: { status: {}, notes: {}, upd: 0 }, // Vorlesung durchgehen: Abschnitt -> 'ok' | 'unklar', Notiz
+    walkDirty: false,
     owner: '',                           // Konto, zu dem dieser Lernstand gehört ('' = ohne Login gelernt)
     // Lernpunkte für die Skyline: log: Tag -> { Klausurthema: Punkte, _: allgemein };
     // 'start' = einmaliges Startkapital aus dem bisherigen Lernstand; shop: gebaute Extras -> Datum
@@ -59,6 +61,7 @@ export function load() {
     state.badges = { ...blank().badges, ...state.badges };
     state.missionPick ||= blank().missionPick;
     state.points = { ...blank().points, ...state.points };
+    state.walk ||= blank().walk;
     state.prep ||= blank().prep;
     state.checks ||= blank().checks;
     state.settings = { ...blank().settings, ...state.settings };
@@ -103,12 +106,14 @@ function countActivity(today) {
 
 export const activityDays = () => state.activity.days;
 export const missionDays = () => state.activity.mission;
-export const partsToday = (today = dateStr()) => ({ k: 0, a: 0, m: 0, ...state.activity.parts[today] });
+export const partsToday = (today = dateStr()) => ({ k: 0, a: 0, m: 0, f: 0, ...state.activity.parts[today] });
+/** Summe eines Zählers über alle Tage (z. B. f = Fokusblöcke). */
+export const partTotal = (part) => Object.values(state.activity.parts).reduce((sum, p) => sum + (p[part] || 0), 0);
 
 /** Zählt einen Teil der Tagesmission: k = Karte in einer Abfrage, a = Rechenaufgabe, m = Methode erkannt. */
 export function countPart(part, today = dateStr()) {
   const p = { k: 0, a: 0, m: 0, ...state.activity.parts[today] };
-  p[part] += 1;
+  p[part] = (p[part] || 0) + 1;
   state.activity.parts[today] = p;
   state.activityDirty = true;
   save();
@@ -263,6 +268,30 @@ export function setPrepNote(id, text) {
   save();
 }
 
+export const walkStatus = (id) => state.walk.status[id] || '';
+export const walkNote = (id) => state.walk.notes[id] || '';
+
+/** Gibt true zurück, wenn der Abschnitt zum ersten Mal als verstanden markiert wurde. */
+export function setWalkStatus(id, status) {
+  const first = status === 'ok' && !state.walk.status[id] && !state.walk.notes[`${id}#ok`];
+  if (status) state.walk.status[id] = status;
+  else delete state.walk.status[id];
+  if (status === 'ok') state.walk.notes[`${id}#ok`] = '1'; // merkt sich, dass es dafür schon Punkte gab
+  state.walk.upd = Date.now();
+  state.walkDirty = true;
+  save();
+  return first;
+}
+
+export function setWalkNote(id, text) {
+  const t = String(text || '').slice(0, 2000);
+  if (t.trim()) state.walk.notes[id] = t;
+  else delete state.walk.notes[id];
+  state.walk.upd = Date.now();
+  state.walkDirty = true;
+  save();
+}
+
 export const checksFor = (id) => state.checks.list[id] || [];
 export const allChecks = () => state.checks.list;
 
@@ -371,6 +400,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   let seenChecks = false;
   let seenBadges = false;
   let seenPoints = false;
+  let seenWalk = false;
   for (const row of userData) {
     const remoteUpd = Date.parse(row.updated_at);
     if (row.key === 'settings') {
@@ -392,12 +422,13 @@ export function applyRemote({ cards = [], userData = [] }) {
       }
       const rParts = row.value?.parts || {};
       for (const [d, p] of Object.entries(rParts)) {
-        const l = state.activity.parts[d] || {};
-        state.activity.parts[d] = { k: Math.max(l.k || 0, p.k || 0), a: Math.max(l.a || 0, p.a || 0), m: Math.max(l.m || 0, p.m || 0) };
+        const l = { ...state.activity.parts[d] };
+        for (const [k, n] of Object.entries(p)) l[k] = Math.max(l[k] || 0, n || 0);
+        state.activity.parts[d] = l;
       }
       for (const [d, p] of Object.entries(state.activity.parts)) {
         const r = rParts[d] || {};
-        if ((p.k || 0) > (r.k || 0) || (p.a || 0) > (r.a || 0) || (p.m || 0) > (r.m || 0)) localHasMore = true;
+        if (Object.entries(p).some(([k, n]) => (n || 0) > (r[k] || 0))) localHasMore = true;
       }
       const rMission = row.value?.mission || {};
       for (const d of Object.keys(rMission)) state.activity.mission[d] = true;
@@ -451,6 +482,13 @@ export function applyRemote({ cards = [], userData = [] }) {
         state.checksDirty = false;
       } else if (state.checks.upd > remoteUpd) state.checksDirty = true;
     }
+    if (row.key === 'walk') {
+      seenWalk = true;
+      if (remoteUpd > state.walk.upd) {
+        state.walk = { status: row.value?.status || {}, notes: row.value?.notes || {}, upd: remoteUpd };
+        state.walkDirty = false;
+      } else if (state.walk.upd > remoteUpd) state.walkDirty = true;
+    }
     if (row.key === 'prep') {
       seenPrep = true;
       if (remoteUpd > state.prep.upd) {
@@ -480,6 +518,7 @@ export function applyRemote({ cards = [], userData = [] }) {
   if (!seenChecks && state.checks.upd) state.checksDirty = true;
   if (!seenBadges && state.badges.upd) state.badgesDirty = true;
   if (!seenPoints && state.points.upd) state.pointsDirty = true;
+  if (!seenWalk && state.walk.upd) state.walkDirty = true;
   if (!seenActivity && (Object.keys(state.activity.days).length || state.activity.backfilled)) state.activityDirty = true;
   save();
 }
@@ -513,6 +552,9 @@ export function outbox() {
       updated_at: new Date().toISOString(),
     });
   }
+  if (state.walkDirty) {
+    userData.push({ key: 'walk', value: { status: state.walk.status, notes: state.walk.notes }, updated_at: new Date(state.walk.upd).toISOString() });
+  }
   if (state.pointsDirty) {
     userData.push({ key: 'points', value: { log: JSON.parse(JSON.stringify(state.points.log)), shop: { ...state.points.shop }, init: state.points.init }, updated_at: new Date(state.points.upd || Date.now()).toISOString() });
   }
@@ -536,6 +578,7 @@ export function markPushed(box) {
     if (row.key === 'sheet' && new Date(state.sheet.upd).toISOString() === row.updated_at) state.sheetDirty = false;
     if (row.key === 'drill' && new Date(state.drill.upd).toISOString() === row.updated_at) state.drillDirty = false;
     if (row.key === 'prep' && new Date(state.prep.upd).toISOString() === row.updated_at) state.prepDirty = false;
+    if (row.key === 'walk' && new Date(state.walk.upd).toISOString() === row.updated_at) state.walkDirty = false;
     if (row.key === 'points' && JSON.stringify({ log: state.points.log, shop: state.points.shop, init: state.points.init }) === JSON.stringify(row.value)) state.pointsDirty = false;
     if (row.key === 'badges' && JSON.stringify({ got: state.badges.got, cnt: state.badges.cnt }) === JSON.stringify(row.value)) state.badgesDirty = false;
     if (row.key === 'checks' && new Date(state.checks.upd).toISOString() === row.updated_at) state.checksDirty = false;
@@ -551,5 +594,5 @@ export function markPushed(box) {
 }
 
 export function hasUnsynced() {
-  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty || state.badgesDirty || state.pointsDirty;
+  return Object.keys(state.dirty).length > 0 || state.pending.length > 0 || state.settingsDirty || state.sheetDirty || state.drillDirty || state.activityDirty || state.prepDirty || state.checksDirty || state.badgesDirty || state.pointsDirty || state.walkDirty;
 }

@@ -15,6 +15,7 @@
 //       Rückmeldung zu einer eigenen Lösung (Foto im Chat geschickt):
 //       rueckmeldung: [{ datum: 'JJJJ-MM-TT', text }] an der Aufgabe.
 //    Neue Themen (Feld thema) einem Klausurthema zuordnen: content/themen.js
+//    Vorlesung durchgehen (Folien + handschriftliche Notizen): content/durchgang/
 //    Neue Aufgabentypen auch im Schnelltraining ergänzen: content/methoden.js
 //    2. hier importieren und in die passende Woche eintragen
 //    3. node tools/check-content.mjs ausführen
